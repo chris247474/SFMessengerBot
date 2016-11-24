@@ -516,19 +516,7 @@ function ShowSecretFilesSubscriptions(senderid, reply){
 
 ////////////////////////////// Start server
 
-http.createServer(bot.middleware()).listen(5000)
-console.log('Echo bot server running at port 5000.')
+http.createServer(bot.middleware()).listen(process.env.PORT || 5000)
+console.log('Echo bot server running at port 5000 or '+ process.env.PORT)
 
 //////////////////////////////////
-
-//account for opt-in events using "messaging_optins"
-
-//function to send welcome message -- how to test?
-/*function SendWelcomeMessage(recipient, callback){
-  bot.sendMessage(recipient, new payload({
-    "setting_type":"greeting",
-    "greeting":{
-      "text":"Shout to the world. No one will know"
-    }
-  }), callback);
-}*/
