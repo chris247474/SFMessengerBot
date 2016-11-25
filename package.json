@@ -1,5 +1,5 @@
 {
-  "name": "azuredbserver",
+  "name": "secretfiles",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -10,13 +10,8 @@
   "author": "Chris Verceles",
   "license": "ISC",
   "dependencies": {
-    "azure-mobile-apps": "^3.0.2",
-    "body-parser": "^1.15.2",
-    "express": "^4.14.0",
     "http": "0.0.0",
     "messenger-bot": "^2.4.0",
-    "request": "^2.79.0",
-    "sqlite3": "^3.1.8",
-    "tedious": "^1.14.0"
+    "request": "^2.79.0"
   }
 }

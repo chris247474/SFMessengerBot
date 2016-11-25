@@ -1,28 +1,11 @@
 'use strict'
 const http = require('http')
-
-//lightweight wrapper for common fb messenger GET POST
 const Bot = require('messenger-bot')
-
 const request = require('request')
 
-//to access azure cloud db
-//const azureMobileApps = require('azure-mobile-apps')
-
-const express = require('express')
-const bodyParser = require('body-parser')
-
-//to access SQL Server on azure
-var tedious = require('tedious')
-var Connection = tedious.Connection;
-var Request = tedious.Request;  
-var TYPES = tedious.TYPES;  
-
-//microsoft azure secret files application
-var azureDBConnStr = "Driver={ODBC Driver 13 for SQL Server};Server=tcp:chrisdavetv.database.windows.net,1433;Database=chrisdavetvapps;Uid=chrisdavetv@chrisdavetv;Pwd={Chrisujt5287324747@@};Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
-
-//postback and message events string ids
 var GETSTARTEDSTRING = "Get Started"
+
+//postback string ids
 var PostNew = "Post"
 var ShowPostsString = "Read Posts"
 var ShowSecretFilesString = "Browse Secret Files"
@@ -31,64 +14,16 @@ var HelpPersistentMenuItem = "Help"
 var SubscribeString = "Subscribe"
 var HowDoesItWorkString = "How does it work?"
 var TryItOutString = 'Try it out'
+//var MakeMyOwnString = 'Make My Own'
 var CreateNewSecretFileString = "Create New Secret File"
 
-//var GetStartedSent = false
+var GetStartedSent = false
 
-//initialize messenger-bot
 let bot = new Bot({
   token: 'EAAX2onbWfdMBAGsG7XKJIDWuuZBoPQVt0euv438fQsWrE1aRNJGxERWRR9n1QQN7upG6k3xrwwodgEdZBibLnQFGtDsA1wT8oTnSTJe5pNeL2kqquZCDM5UopTXYpoWsBfh8sO673Uz4vzV3osCVDSxJZBKvWZBfJXCUag9bRdwZDZD',
   verify: 'token'
 })
 
-// Azure Mobile Apps - SQLite3 Initialization
- //var mobile = azureMobileApps();
- 
-// When you connect to Azure SQL Database, you need these next options.  
-var config = {  
-        userName: 'chrisdavetv@chrisdavetv',  
-        password: 'Chrisujt5287324747@@',  
-        server: 'chrisdavetv.database.windows.net',  
-        options: {encrypt: true, database: 'chrisdavetvapps'}  
-    }; 
-//connection will be refused by Azure SQL Server unless you add a firewall exception for this IP address
-var connection = new Connection(config);  
-    connection.on('connect', function(err) {  
-        // If no error, then good to proceed.  
-        if(err) console.log('debug:', err)
-        console.log("Connected to Azure SQL Server "+config.server+', DB '+config.options.database);  
-        executeStatement();  
-    });  
-
-///////////////////////////////// SQL helper functions
-
-function executeStatement() {  
-    var queryRequest = new Request("SELECT * FROM AccountItem", function(err) {  
-    if (err) {  
-        console.log(err);}  
-    });  
-    var result = "";  
-    queryRequest.on('row', function(columns) {  
-        columns.forEach(function(column) {  
-          if (column.value === null) {  
-            console.log('NULL');  
-          } else {  
-            result+= column.value + " ";  
-          }  
-        });  
-        console.log(result);  
-        result ="";  
-    });  
-
-    queryRequest.on('done', function(rowCount, more) {  
-    console.log(rowCount + ' rows returned');  
-    });  
-    connection.execSql(queryRequest);  
-}  
-
-/////////////////////////////////
-
-// messenger bot initial ui and menu
 createPersistentMenu()
 createGetStartedButton()
 
@@ -259,6 +194,38 @@ function SubscribeToSecretFile(reply, secretfile){
             throw err
           }
     })
+
+  /*if(secretfile){
+    var responseMessage = 'Whenever someone posts on '+secretfile+
+    ', it will appear here from now on! Here\'s what we can do next:'
+    reply(
+      {
+        text: responseMessage, 
+        quick_replies: [
+          createQuickTextReply(PostNew, PostNew),
+          createQuickTextReply(ShowPostsString, ShowPostsString)
+        ]
+      }, (err, info) => {
+          if(err) {
+            console.log(err.message)
+            throw err
+          }
+    })
+  }else{
+    var responseMessage = 'Hmm... Something went wrong. Please choose again'
+    reply(
+      {
+        text: responseMessage, 
+        quick_replies: [
+          createQuickTextReply(ShowSecretFilesString, ShowSecretFilesString)
+        ]
+      }, (err, info) => {
+      if(err) {
+        console.log(err.message)
+        throw err
+      }
+    })
+  }*/
 }
 
 function createPersistentMenu(){
@@ -547,31 +514,9 @@ function ShowSecretFilesSubscriptions(senderid, reply){
 
 
 
-////////////////////////////// Start server using express as middleware
+////////////////////////////// Start server
 
-let app = express()
-
-app.use(bodyParser.json())
-app.use(bodyParser.urlencoded({
-  extended: true
-}))
-
-app.get('/', (req, res) => {
-  return bot._verify(req, res)
-})
-
-app.post('/', (req, res) => {
-  bot._handleMessage(req.body)
-  res.end(JSON.stringify({status: 'ok'}))
-})
-
-var port = 
-  process.env.PORT || 
-  5000
-http.createServer(app).listen(port)
-console.log('Express NodeJS bot server running at port '+ port)
-
-//for webhook w facebook messenger
-//heroku server running at url https://murmuring-depths-99314.herokuapp.com/ and verify token 'token'
+http.createServer(bot.middleware()).listen(process.env.PORT || 5000)
+console.log('Echo bot server running at port 5000 or '+ process.env.PORT)
 
 //////////////////////////////////
