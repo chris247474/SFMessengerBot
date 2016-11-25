@@ -12,11 +12,17 @@ const request = require('request')
 const express = require('express')
 const bodyParser = require('body-parser')
 
+//generic doubly linked list for more dynamic set operations
+var List = require("collections/list");
+
 //to access SQL Server on azure
 var tedious = require('tedious')
 var Connection = tedious.Connection;
 var Request = tedious.Request;  
 var TYPES = tedious.TYPES;  
+
+//DB format result strings
+var SEPARATORSTRING = '-+++-'
 
 //microsoft azure secret files application
 var azureDBConnStr = "Driver={ODBC Driver 13 for SQL Server};Server=tcp:chrisdavetv.database.windows.net,1433;Database=chrisdavetvapps;Uid=chrisdavetv@chrisdavetv;Pwd={Chrisujt5287324747@@};Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
@@ -57,31 +63,49 @@ var connection = new Connection(config);
         // If no error, then good to proceed.  
         if(err) console.log('debug:', err)
         console.log("Connected to Azure SQL Server "+config.server+', DB '+config.options.database);  
-        executeStatement();  
+        //executeStatement("SELECT * FROM AccountItem");  
     });  
 
 ///////////////////////////////// SQL helper functions
-
-function executeStatement() {  
-    var queryRequest = new Request("SELECT * FROM AccountItem", function(err) {  
+var rowList = new List()
+function executeStatement(stringquery) {  
+    var queryRequest = new Request(stringquery, function(err) {  
     if (err) {  
         console.log(err);}  
     });  
-    var result = "";  
-    queryRequest.on('row', function(columns) {  
+
+    //var result = '';  
+    
+
+    queryRequest.on('row', function(columns) {
+        var columnList = new List()  
         columns.forEach(function(column) {  
           if (column.value === null) {  
-            console.log('NULL');  
+            //console.log('NULL');  
           } else {  
-            result+= column.value + " ";  
+            //result+= column.value + " ";  
+            columnList.add(column.value)
+            //console.log(column.value)
           }  
         });  
-        console.log(result);  
-        result ="";  
+
+        //console.log(result);  
+        //result +="";  
+        for(var c = 0;c < columns.length;c++){
+          //console.log(columns[c].value)
+        }
+        rowList.add(columns)
     });  
 
-    queryRequest.on('done', function(rowCount, more) {  
-    console.log(rowCount + ' rows returned');  
+    //check http://tediousjs.github.io/tedious/api-request.html#event_done
+    queryRequest.on('done', function(rowCount, more, rows) {  //doesnt trigger...?
+      console.log(rowCount + ' rows returned');  
+      
+      /*rows.forEach(function(columns){
+        columns.forEach(function(column){
+          console.log(column.value)
+        })
+      })*/
     });  
     connection.execSql(queryRequest);  
 }  
@@ -508,9 +532,13 @@ function ShowSecretFilesSubscriptions(senderid, reply){
           throw err
         }
 
+        var SecretFileArr = executeStatement("SELECT * FROM GROUPITEM")
+
         var elements = [//add call to db
           createElementForPayloadForAttachmentForMessage(
+              //SecretFileArr[0][5],
               "DLSU Secret Files", 
+              //SecretFileArr[0][6],
               "DLSU Secret File\'s New Home", 
               "https://4.bp.blogspot.com", 
               "https://4.bp.blogspot.com/-BB8-tshB9fk/WA9IvvztmfI/AAAAAAAAcHU/hwMnPbAM4lUx8FtCTiSp7IpIes-S0RkLgCLcB/s640/dlsu-campus.jpg", 
