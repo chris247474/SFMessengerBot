@@ -37,7 +37,7 @@ var HelpPersistentMenuItem = "Help"
 var SubscribeString = "Subscribe"
 var HowDoesItWorkString = "How does it work?"
 var TryItOutString = 'Try it out'
-var CreateNewSecretFileString = "Create New Secret File"
+var CreateNewSecretFileString = "Create Secret File"
 
 //var GetStartedSent = false
 
@@ -93,6 +93,16 @@ function CreateNewSecretFileRecord(title, desc, imageurl) {
     console.log('CreateNewSecretFileRecord executed')
 }  
 
+function EditSecretFileRecord(title, desc, imageurl){
+
+}
+
+function DeleteSecretFileRecord(){
+
+}
+
+//read function is integrated w relevant functions, since NodeJS doesn't provide an asynchronous friendly Tedious implementation'
+
 /////////////////////////////////
 
 // messenger bot initial ui and menu
@@ -142,11 +152,10 @@ bot.on('postback', (postbackContainer, reply, actions) => {
 ///////////////////////////////
 
 /////////////////////////////// Helper functions
-function isNullOrWhitespace( input ) {
-
+function isNullOrWhitespace(input) {
     if (typeof input === 'undefined' || input == null) return true;
 
-    return input.replace(/\s/g, '').length < 1;
+    return input.replace(/ /g, '').length < 1;
 }
 function handleMessages(message, callbackObject, reply){
     try{
@@ -532,10 +541,12 @@ function ShowSecretFilesSubscriptions(senderid, reply){
 
         queryRequest.on('row', function(columns) {
             var skip = false;
-            //skip = isNullOrWhitespace(columns[5])
-            //skip = isNullOrWhitespace(columns[6])
+            skip = isNullOrWhitespace(columns[5].value)
+            skip = isNullOrWhitespace(columns[6].value)
+            
+            console.log('groupName is '+columns[5].value+' and groupDesc is '+ columns[6].value)
+            console.log('skipping row? '+ skip)
             if(skip == false) {
-              console.log('skipping row? '+ skip)
               rowList.add(columns)
             }
         });  
@@ -544,8 +555,8 @@ function ShowSecretFilesSubscriptions(senderid, reply){
           console.log(rowList.toArray().length + ' rows returned');  
           rowList.forEach(function(columns){
             elementsList.add(createElementForPayloadForAttachmentForMessage(
-              columns[5],
-              columns[6],
+              columns[5].value,
+              columns[6].value,
               "https://4.bp.blogspot.com", 
               "https://4.bp.blogspot.com/-BB8-tshB9fk/WA9IvvztmfI/AAAAAAAAcHU/hwMnPbAM4lUx8FtCTiSp7IpIes-S0RkLgCLcB/s640/dlsu-campus.jpg", 
               [
