@@ -1,5 +1,5 @@
 {
-  "name": "azuredbserver",
+  "name": "secretfiles",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -12,6 +12,7 @@
   "dependencies": {
     "azure-mobile-apps": "^3.0.2",
     "body-parser": "^1.15.2",
+    "collections": "^5.0.5",
     "express": "^4.14.0",
     "http": "0.0.0",
     "messenger-bot": "^2.4.0",
