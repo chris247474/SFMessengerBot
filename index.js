@@ -55,59 +55,42 @@ var config = {
         userName: 'chrisdavetv@chrisdavetv',  
         password: 'Chrisujt5287324747@@',  
         server: 'chrisdavetv.database.windows.net',  
-        options: {encrypt: true, database: 'chrisdavetvapps'}  
+        options: {
+          encrypt: true, 
+          database: 'chrisdavetvapps',
+          rowCollectionOnRequestCompletion: true,
+          rowCollectionOnDone: true
+        }  
     }; 
 //connection will be refused by Azure SQL Server unless you add a firewall exception for this IP address
 var connection = new Connection(config);  
     connection.on('connect', function(err) {  
         // If no error, then good to proceed.  
         if(err) console.log('debug:', err)
-        console.log("Connected to Azure SQL Server "+config.server+', DB '+config.options.database);  
+        else console.log("Connected to Azure SQL Server "+config.server+', DB '+config.options.database);  
         //executeStatement("SELECT * FROM AccountItem");  
     });  
 
 ///////////////////////////////// SQL helper functions
-var rowList = new List()
-function executeStatement(stringquery) {  
-    var queryRequest = new Request(stringquery, function(err) {  
-    if (err) {  
-        console.log(err);}  
+
+function CreateNewSecretFileRecord(title, desc, imageurl) {  
+    console.log('Creating a new Secret File')
+    var queryRequest = new Request(
+      'INSERT INTO GROUPITEM (groupName, groupDesc, groupImage, adminuserId) VALUES (@title, @desc, @image, @adminuserId)', 
+    function(err) {  
+      if (err) {  
+          console.log(err);
+        }  
     });  
 
-    //var result = '';  
-    
+    //insert values into those marked w '@'
+    queryRequest.addParameter('title', TYPES.NVarChar, title);
+    queryRequest.addParameter('desc', TYPES.NVarChar, desc);
+    queryRequest.addParameter('image', TYPES.NVarChar, imageurl);
+    queryRequest.addParameter('adminuserId', TYPES.NVarChar, '');
 
-    queryRequest.on('row', function(columns) {
-        var columnList = new List()  
-        columns.forEach(function(column) {  
-          if (column.value === null) {  
-            //console.log('NULL');  
-          } else {  
-            //result+= column.value + " ";  
-            columnList.add(column.value)
-            //console.log(column.value)
-          }  
-        });  
-
-        //console.log(result);  
-        //result +="";  
-        for(var c = 0;c < columns.length;c++){
-          //console.log(columns[c].value)
-        }
-        rowList.add(columns)
-    });  
-
-    //check http://tediousjs.github.io/tedious/api-request.html#event_done
-    queryRequest.on('done', function(rowCount, more, rows) {  //doesnt trigger...?
-      console.log(rowCount + ' rows returned');  
-      
-      /*rows.forEach(function(columns){
-        columns.forEach(function(column){
-          console.log(column.value)
-        })
-      })*/
-    });  
     connection.execSql(queryRequest);  
+    console.log('CreateNewSecretFileRecord executed')
 }  
 
 /////////////////////////////////
@@ -429,8 +412,9 @@ function GetNewPostBodyText(payload, reply){
 
 function CreateNewSecretFile(payload, reply){
   //show camera, audio or text upload options
+  console.log('CreateNewSecretFile function called')
   reply({
-    text: "Oops! Sorry this feature is still under construction. Subscribing you to a test Secret File"
+    text: "Oops! Sorry this feature is still under construction. Creating a dummy Secret File"
   }, (err, info) => {
     if(err){
       console.log(err.message)
@@ -438,10 +422,10 @@ function CreateNewSecretFile(payload, reply){
     }
   })
 
-  SubscribeToSecretFile(reply, "DLSU Secret Files")
+  CreateNewSecretFileRecord('Your very own Secret File', 'Description here', '')
+  
+  //SubscribeToSecretFile(reply, "DLSU Secret Files")
 }
-
-
 
 function createQuickTextReply(_title, _payload){
   return {
@@ -532,42 +516,98 @@ function ShowSecretFilesSubscriptions(senderid, reply){
           throw err
         }
 
-        var SecretFileArr = executeStatement("SELECT * FROM GROUPITEM")
+        //create and execute query (this is all async, makes it difficult to write a return function)
+        var GETALLSECRETFILESQUERY = "SELECT * FROM GROUPITEM"
+        var rowList = new List()
+        var elementsList = new List()
+        var queryRequest = new Request(GETALLSECRETFILESQUERY, function(err) {  
+        if (err) {  
+            console.log(err);}  
+        });  
 
-        var elements = [//add call to db
-          createElementForPayloadForAttachmentForMessage(
-              //SecretFileArr[0][5],
-              "DLSU Secret Files", 
-              //SecretFileArr[0][6],
-              "DLSU Secret File\'s New Home", 
+        queryRequest.on('row', function(columns) {
+            var skip = false;
+            columns.forEach(function(column) {  
+              if (column.value === null) {  
+                skip = true
+                console.log('empty value, skipping')
+              }
+              if(column.value == ''){
+                skip = true
+                console.log('empty value, skipping')
+              }  
+            });  
+            if(skip == false) rowList.add(columns)
+        });  
+
+        queryRequest.on('doneProc', function(rowCount, more) { 
+          console.log(rowCount + ' rows returned');  
+          rowList.forEach(function(columns){
+            elementsList.add(createElementForPayloadForAttachmentForMessage(
+              columns[5],
+              columns[6],
               "https://4.bp.blogspot.com", 
               "https://4.bp.blogspot.com/-BB8-tshB9fk/WA9IvvztmfI/AAAAAAAAcHU/hwMnPbAM4lUx8FtCTiSp7IpIes-S0RkLgCLcB/s640/dlsu-campus.jpg", 
               [
                 createButton("postback", "Subscribe")
               ]
-          ),
-          createElementForPayloadForAttachmentForMessage(
-              "DLSU Secret Files", 
-              "DLSU Secret File\'s New Home", 
-              "https://4.bp.blogspot.com", 
-              "https://4.bp.blogspot.com/-BB8-tshB9fk/WA9IvvztmfI/AAAAAAAAcHU/hwMnPbAM4lUx8FtCTiSp7IpIes-S0RkLgCLcB/s640/dlsu-campus.jpg", 
-              [
-                createButton("postback", "Subscribe")
-              ]
-          )    
-        ]
+            ))
+          })
+          var elements = //elementsList.toArray()
+            [
+              createElementForPayloadForAttachmentForMessage(
+                  //SecretFileArr[0][5],
+                  "DLSU Secret Files", 
+                  //SecretFileArr[0][6],
+                  "DLSU Secret File\'s New Home", 
+                  "https://4.bp.blogspot.com", 
+                  "https://4.bp.blogspot.com/-BB8-tshB9fk/WA9IvvztmfI/AAAAAAAAcHU/hwMnPbAM4lUx8FtCTiSp7IpIes-S0RkLgCLcB/s640/dlsu-campus.jpg", 
+                  [
+                    createButton("postback", "Subscribe")
+                  ]
+              ),
+              createElementForPayloadForAttachmentForMessage(
+                  "DLSU Secret Files", 
+                  "DLSU Secret File\'s New Home", 
+                  "https://4.bp.blogspot.com", 
+                  "https://4.bp.blogspot.com/-BB8-tshB9fk/WA9IvvztmfI/AAAAAAAAcHU/hwMnPbAM4lUx8FtCTiSp7IpIes-S0RkLgCLcB/s640/dlsu-campus.jpg", 
+                  [
+                    createButton("postback", "Subscribe")
+                  ]
+              )    
+            ]
 
-        //invoke bot.sendMessage to user who sent initial message (payload.sender.id) with param being either 'text' or 'attachment' objects of message object
-        reply({ 
-              attachment:createTemplateAttachmentForMessage(elements)
-        }, (err) => {
-          if (err) {
-            console.log(err.message)
-            throw err
+        //now show to user
+          if(elements.length > 0){
+            reply({ 
+                text: 'There are no Secret Files yet! ',
+                quick_replies: [
+                  createQuickTextReply('Create', CreateNewSecretFileString)
+                ]
+            }, (err) => {
+              if (err) {
+                console.log(err.message)
+                throw err
+              }
+
+              console.log(`Showing empty Secret Files subscription list to user `+ senderid)
+            })
+          }else {
+            reply({ 
+                attachment:createTemplateAttachmentForMessage(elements)
+            }, (err) => {
+              if (err) {
+                console.log(err.message)
+                throw err
+              }
+
+              console.log(`Showing Secret Files subscription list to user `+ senderid)
+            })
           }
 
-          console.log(`Showing Secret Files subscription list to user `+ senderid)
-        })
+        });  
+
+        connection.execSql(queryRequest); 
       })
 }
 /////////////////////////////////////////////////
@@ -603,3 +643,39 @@ console.log('Express NodeJS bot server running at port '+ port)
 //heroku server running at url https://murmuring-depths-99314.herokuapp.com/ and verify token 'token'
 
 //////////////////////////////////
+
+/**
+ * db query pattern
+ */
+/* 
+  var QUERY = ""
+  var rowList = new List()
+  var elementsList = new List()
+  var queryRequest = new Request(QUERY, function(err) {  
+  if (err) {  
+      console.log(err)
+    }  
+  });  
+
+  queryRequest.on('row', function(columns) {
+      var skip = false;
+      columns.forEach(function(column) {  
+        if (column.value === null) {  
+          skip = true
+          console.log('empty value, skipping')
+        }
+        if(column.value == ''){
+          skip = true
+          console.log('empty value, skipping')
+        }  
+      });  
+      if(skip == false) rowList.add(columns)
+  });  
+
+  queryRequest.on('doneProc', function(rowCount, more) { 
+      console.log(rowCount + ' rows returned');  
+      
+  });  
+
+  connection.execSql(queryRequest); 
+*/
