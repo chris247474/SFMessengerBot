@@ -5,10 +5,6 @@ const http = require('http')
 const Bot = require('messenger-bot')
 
 const request = require('request')
-
-//to access azure cloud db
-//const azureMobileApps = require('azure-mobile-apps')
-
 const express = require('express')
 const bodyParser = require('body-parser')
 
@@ -19,7 +15,7 @@ var List = require("collections/list");
 var tedious = require('tedious')
 var Connection = tedious.Connection;
 var Request = tedious.Request;  
-var TYPES = tedious.TYPES;  
+var TYPES = tedious.TYPES; 
 
 //DB format result strings
 var SEPARATORSTRING = '-+++-'
@@ -47,10 +43,11 @@ let bot = new Bot({
   verify: 'token'
 })
 
-// Azure Mobile Apps - SQLite3 Initialization
- //var mobile = azureMobileApps();
+//setup db connection using SOCKSJS for static IP in heroku server
+//http://stackoverflow.com/questions/20581920/static-ip-address-with-heroku-not-proximo
+//https://devcenter.heroku.com/articles/quotaguardstatic#socks-proxy-setup
  
-// When you connect to Azure SQL Database, you need these next options.  
+// When you connect to Azure SQL Server, you need these next options.  
 var config = {  
         userName: 'chrisdavetv@chrisdavetv',  
         password: 'Chrisujt5287324747@@',  
@@ -64,12 +61,12 @@ var config = {
     }; 
 //connection will be refused by Azure SQL Server unless you add a firewall exception for this IP address
 var connection = new Connection(config);  
-    connection.on('connect', function(err) {  
-        // If no error, then good to proceed.  
-        if(err) console.log('debug:', err)
-        else console.log("Connected to Azure SQL Server "+config.server+', DB '+config.options.database);  
-        //executeStatement("SELECT * FROM AccountItem");  
-    });  
+connection.on('connect', function(err) {  
+    // If no error, then good to proceed.  
+    if(err) console.log('debug:', err)
+    else console.log("Connected to Azure SQL Server "+config.server+', DB '+config.options.database);  
+    //executeStatement("SELECT * FROM AccountItem");  
+});  
 
 ///////////////////////////////// SQL helper functions
 
@@ -93,15 +90,10 @@ function CreateNewSecretFileRecord(title, desc, imageurl) {
     console.log('CreateNewSecretFileRecord executed')
 }  
 
-function EditSecretFileRecord(title, desc, imageurl){
-
-}
-
-function DeleteSecretFileRecord(){
-
-}
-
+function EditSecretFileRecord(title, desc, imageurl){}
+function DeleteSecretFileRecord(){}
 //read function is integrated w relevant functions, since NodeJS doesn't provide an asynchronous friendly Tedious implementation'
+
 
 /////////////////////////////////
 
@@ -565,19 +557,6 @@ function ShowSecretFilesSubscriptions(senderid, reply){
             ))
           })
           var elements = elementsList.toArray()
-           /* [
-              createElementForPayloadForAttachmentForMessage(
-                  //SecretFileArr[0][5],
-                  "Dummy Secret Files", 
-                  //SecretFileArr[0][6],
-                  "Dummy Secret File\'s New Home", 
-                  "https://4.bp.blogspot.com", 
-                  "https://4.bp.blogspot.com/-BB8-tshB9fk/WA9IvvztmfI/AAAAAAAAcHU/hwMnPbAM4lUx8FtCTiSp7IpIes-S0RkLgCLcB/s640/dlsu-campus.jpg", 
-                  [
-                    createButton("postback", "Subscribe")
-                  ]
-              )    
-            ]*/
 
         //now show to user
           if(elements.length < 1){
@@ -611,6 +590,7 @@ function ShowSecretFilesSubscriptions(senderid, reply){
 
         connection.execSql(queryRequest); 
       })
+      
 }
 /////////////////////////////////////////////////
 
