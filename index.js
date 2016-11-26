@@ -142,7 +142,12 @@ bot.on('postback', (postbackContainer, reply, actions) => {
 ///////////////////////////////
 
 /////////////////////////////// Helper functions
+function isNullOrWhitespace( input ) {
 
+    if (typeof input === 'undefined' || input == null) return true;
+
+    return input.replace(/\s/g, '').length < 1;
+}
 function handleMessages(message, callbackObject, reply){
     try{
       if(message == ShowSecretFilesString){
@@ -527,21 +532,16 @@ function ShowSecretFilesSubscriptions(senderid, reply){
 
         queryRequest.on('row', function(columns) {
             var skip = false;
-            columns.forEach(function(column) {  
-              if (column.value === null) {  
-                skip = true
-                console.log('empty value, skipping')
-              }
-              if(column.value == ''){
-                skip = true
-                console.log('empty value, skipping')
-              }  
-            });  
-            if(skip == false) rowList.add(columns)
+            //skip = isNullOrWhitespace(columns[5])
+            //skip = isNullOrWhitespace(columns[6])
+            if(skip == false) {
+              console.log('skipping row? '+ skip)
+              rowList.add(columns)
+            }
         });  
 
         queryRequest.on('doneProc', function(rowCount, more) { 
-          console.log(rowCount + ' rows returned');  
+          console.log(rowList.toArray().length + ' rows returned');  
           rowList.forEach(function(columns){
             elementsList.add(createElementForPayloadForAttachmentForMessage(
               columns[5],
@@ -553,32 +553,23 @@ function ShowSecretFilesSubscriptions(senderid, reply){
               ]
             ))
           })
-          var elements = //elementsList.toArray()
-            [
+          var elements = elementsList.toArray()
+           /* [
               createElementForPayloadForAttachmentForMessage(
                   //SecretFileArr[0][5],
-                  "DLSU Secret Files", 
+                  "Dummy Secret Files", 
                   //SecretFileArr[0][6],
-                  "DLSU Secret File\'s New Home", 
-                  "https://4.bp.blogspot.com", 
-                  "https://4.bp.blogspot.com/-BB8-tshB9fk/WA9IvvztmfI/AAAAAAAAcHU/hwMnPbAM4lUx8FtCTiSp7IpIes-S0RkLgCLcB/s640/dlsu-campus.jpg", 
-                  [
-                    createButton("postback", "Subscribe")
-                  ]
-              ),
-              createElementForPayloadForAttachmentForMessage(
-                  "DLSU Secret Files", 
-                  "DLSU Secret File\'s New Home", 
+                  "Dummy Secret File\'s New Home", 
                   "https://4.bp.blogspot.com", 
                   "https://4.bp.blogspot.com/-BB8-tshB9fk/WA9IvvztmfI/AAAAAAAAcHU/hwMnPbAM4lUx8FtCTiSp7IpIes-S0RkLgCLcB/s640/dlsu-campus.jpg", 
                   [
                     createButton("postback", "Subscribe")
                   ]
               )    
-            ]
+            ]*/
 
         //now show to user
-          if(elements.length > 0){
+          if(elements.length < 1){
             reply({ 
                 text: 'There are no Secret Files yet! ',
                 quick_replies: [
