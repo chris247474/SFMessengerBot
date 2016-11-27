@@ -15,10 +15,12 @@
     "express": "^4.14.0",
     "http": "0.0.0",
     "messenger-bot": "^2.4.0",
+    "mysql2": "^1.1.2",
     "node-wit": "^4.1.0",
     "request": "^2.79.0",
     "socksjs": "^0.5.0",
     "sqlite3": "^3.1.8",
-    "tedious": "^1.14.0"
+    "tedious": "^1.14.0",
+    "url": "^0.11.0"
   }
 }

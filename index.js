@@ -12,10 +12,10 @@ const bodyParser = require('body-parser')
 var List = require("collections/list");
 
 //to access SQL Server on azure
-var tedious = require('tedious')
+/*var tedious = require('tedious')
 var Connection = tedious.Connection;
 var Request = tedious.Request;  
-var TYPES = tedious.TYPES; 
+var TYPES = tedious.TYPES; */
 
 //DB format result strings
 var SEPARATORSTRING = '-+++-'
@@ -35,8 +35,6 @@ var HowDoesItWorkString = "How does it work?"
 var TryItOutString = 'Try it out'
 var CreateNewSecretFileString = "Create Secret File"
 
-//var GetStartedSent = false
-
 //initialize messenger-bot
 let bot = new Bot({
   token: 'EAAX2onbWfdMBAGsG7XKJIDWuuZBoPQVt0euv438fQsWrE1aRNJGxERWRR9n1QQN7upG6k3xrwwodgEdZBibLnQFGtDsA1wT8oTnSTJe5pNeL2kqquZCDM5UopTXYpoWsBfh8sO673Uz4vzV3osCVDSxJZBKvWZBfJXCUag9bRdwZDZD',
@@ -46,9 +44,41 @@ let bot = new Bot({
 //setup db connection using SOCKSJS for static IP in heroku server
 //http://stackoverflow.com/questions/20581920/static-ip-address-with-heroku-not-proximo
 //https://devcenter.heroku.com/articles/quotaguardstatic#socks-proxy-setup
+var mysql = require('mysql2');
+var url = require("url");
+var SocksConnection = require('socksjs');
+var remote_options = {
+host:'chrisdavetv.database.windows.net',
+port: 3306
+};
+var proxy = url.parse(process.env.QUOTAGUARDSTATIC_URL);
+var auth = proxy.auth;
+var username = auth.split(":")[0]
+var pass = auth.split(":")[1]
+
+var sock_options = {
+  host: proxy.hostname,
+  port: 1080,
+  user: username,
+  pass: pass
+}
+var sockConn = new SocksConnection(remote_options, sock_options)
+var dbConnection = mysql.createConnection({
+  user: 'chrisdavetv@chrisdavetv',
+  database: 'chrisdavetvapps',
+  password: 'Chrisujt5287324747',
+  stream: sockConn
+});
+dbConnection.query('SELECT 1+1 as test1;', function(err, rows, fields) {
+  if (err) throw err;
+
+  console.log('Result: ', rows);
+  sockConn.dispose();
+});
+dbConnection.end();
  
 // When you connect to Azure SQL Server, you need these next options.  
-var config = {  
+/*var config = {  
         userName: 'chrisdavetv@chrisdavetv',  
         password: 'Chrisujt5287324747@@',  
         server: 'chrisdavetv.database.windows.net',  
@@ -66,13 +96,13 @@ connection.on('connect', function(err) {
     if(err) console.log('debug:', err)
     else console.log("Connected to Azure SQL Server "+config.server+', DB '+config.options.database);  
     //executeStatement("SELECT * FROM AccountItem");  
-});  
+});  */
 
 ///////////////////////////////// SQL helper functions
 
 function CreateNewSecretFileRecord(title, desc, imageurl) {  
     console.log('Creating a new Secret File')
-    var queryRequest = new Request(
+    /*var queryRequest = new Request(
       'INSERT INTO GROUPITEM (groupName, groupDesc, groupImage, adminuserId) VALUES (@title, @desc, @image, @adminuserId)', 
     function(err) {  
       if (err) {  
@@ -86,7 +116,7 @@ function CreateNewSecretFileRecord(title, desc, imageurl) {
     queryRequest.addParameter('image', TYPES.NVarChar, imageurl);
     queryRequest.addParameter('adminuserId', TYPES.NVarChar, '');
 
-    connection.execSql(queryRequest);  
+    connection.execSql(queryRequest);  */
     console.log('CreateNewSecretFileRecord executed')
 }  
 
@@ -516,7 +546,7 @@ function createTemplateAttachmentForMessage(elementsArray){
 function ShowSecretFilesSubscriptions(senderid, reply){
     console.log('ShowSecretFilesString() Activated')
 
-      bot.getProfile(senderid, (err, profile) => {
+      /*bot.getProfile(senderid, (err, profile) => {
         if (err) {
           console.log(err.message)
           throw err
@@ -589,7 +619,7 @@ function ShowSecretFilesSubscriptions(senderid, reply){
         });  
 
         connection.execSql(queryRequest); 
-      })
+      })*/
       
 }
 /////////////////////////////////////////////////
