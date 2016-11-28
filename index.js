@@ -12,10 +12,10 @@ const bodyParser = require('body-parser')
 var List = require("collections/list");
 
 //to access SQL Server on azure
-/*var tedious = require('tedious')
+var tedious = require('tedious')
 var Connection = tedious.Connection;
 var Request = tedious.Request;  
-var TYPES = tedious.TYPES; */
+var TYPES = tedious.TYPES; 
 
 //DB format result strings
 var SEPARATORSTRING = '-+++-'
@@ -41,90 +41,225 @@ let bot = new Bot({
   verify: 'token'
 })
 
+var useStaticIP = false
+
 //setup db connection using SOCKSJS for static IP in heroku server
 //http://stackoverflow.com/questions/20581920/static-ip-address-with-heroku-not-proximo
 //https://devcenter.heroku.com/articles/quotaguardstatic#socks-proxy-setup
-var QUOTAGUARDSTATIC_URL='http://quotaguard7549:813f015538d1@us-east-static-02.quotaguard.com:9293'
-var mysql = require('mysql2');
-var url = require("url");
-var SocksConnection = require('socksjs');
-var remote_options = {
-  host:'chrisdavetv.database.windows.net',
-  port: 3306
-};
-var proxy = url.parse(process.env.QUOTAGUARDSTATIC_URL || QUOTAGUARDSTATIC_URL);
-var auth = proxy.auth;
-var username = auth.split(":")[0]
-var pass = auth.split(":")[1]
+if(useStaticIP == true){
+  var QUOTAGUARDSTATIC_URL='http://quotaguard7549:813f015538d1@us-east-static-02.quotaguard.com:9293'
+  var mysql = require('mysql2');
+  var url = require("url");
+  var SocksConnection = require('socksjs');
+  var remote_options = {
+    host:'chrisdavetv.database.windows.net',
+    port: 3306
+  };
+  var proxy = url.parse(process.env.QUOTAGUARDSTATIC_URL || QUOTAGUARDSTATIC_URL);
+  var auth = proxy.auth;
+  var username = auth.split(":")[0]
+  var pass = auth.split(":")[1]
 
-var sock_options = {
-  host: proxy.hostname,
-  port: 1080,
-  user: username,
-  pass: pass
+  var sock_options = {
+    host: proxy.hostname,
+    port: 1080,
+    user: username,
+    pass: pass
+  }
+  var sockConn = new SocksConnection(remote_options, sock_options)
+  var dbConnection = mysql.createConnection({
+    user: 'chrisdavetv@chrisdavetv',
+    database: 'chrisdavetvapps',
+    password: 'Chrisujt5287324747',
+    stream: sockConn
+  });
+  dbConnection.query('SELECT 1+1 as test1;', function(err, rows, fields) {
+    if (err) throw err;
+
+    console.log('Using SocksJS - Result: ', rows);
+    sockConn.dispose();
+  });
+  dbConnection.end();
 }
-var sockConn = new SocksConnection(remote_options, sock_options)
-var dbConnection = mysql.createConnection({
-  user: 'chrisdavetv@chrisdavetv',
-  database: 'chrisdavetvapps',
-  password: 'Chrisujt5287324747',
-  stream: sockConn
-});
-dbConnection.query('SELECT 1+1 as test1;', function(err, rows, fields) {
-  if (err) throw err;
 
-  console.log('Result: ', rows);
-  sockConn.dispose();
-});
-dbConnection.end();
  
 // When you connect to Azure SQL Server, you need these next options.  
-/*var config = {  
-        userName: 'chrisdavetv@chrisdavetv',  
-        password: 'Chrisujt5287324747@@',  
-        server: 'chrisdavetv.database.windows.net',  
-        options: {
-          encrypt: true, 
-          database: 'chrisdavetvapps',
-          rowCollectionOnRequestCompletion: true,
-          rowCollectionOnDone: true
-        }  
-    }; 
-//connection will be refused by Azure SQL Server unless you add a firewall exception for this IP address
-var connection = new Connection(config);  
-connection.on('connect', function(err) {  
+if(useStaticIP == false){
+  var config = {  
+      userName: 'chrisdavetv@chrisdavetv',  
+      password: 'Chrisujt5287324747@@',  
+      server: 'chrisdavetv.database.windows.net',  
+      options: {
+        encrypt: true, 
+        database: 'chrisdavetvapps',
+        rowCollectionOnRequestCompletion: true,
+        rowCollectionOnDone: true
+      }  
+  }; 
+  //connection will be refused by Azure SQL Server unless you add a firewall exception for this IP address
+  var connection = new Connection(config);  
+  connection.on('connect', function(err) {  
     // If no error, then good to proceed.  
     if(err) console.log('debug:', err)
     else console.log("Connected to Azure SQL Server "+config.server+', DB '+config.options.database);  
     //executeStatement("SELECT * FROM AccountItem");  
-});  */
+  }); 
+} 
 
 ///////////////////////////////// SQL helper functions
 
-function CreateNewSecretFileRecord(title, desc, imageurl) {  
-    console.log('Creating a new Secret File')
-    /*var queryRequest = new Request(
-      'INSERT INTO GROUPITEM (groupName, groupDesc, groupImage, adminuserId) VALUES (@title, @desc, @image, @adminuserId)', 
-    function(err) {  
-      if (err) {  
+function CreateAccountRecordOrLogin(userid){    not done
+    console.log('CreateAccountRecordOrLogin: logging in')
+
+    if(useStaticIP == false){
+      //check if user already logged in before
+      var selectRequest = new Request("SELECT * FROM ACCOUNTITEM WHERE username = @username", function(err){
+        if (err) {  
           console.log(err);
-        }  
+        }
+      })
+
+
+
+
+      var queryRequest = new Request(
+        'INSERT INTO ACCOUNTITEM (username, password) VALUES (@user, @pass)', 
+      function(err) {  
+        if (err) {  
+            console.log(err);
+          }  
+      });  
+
+      //insert values into those marked w '@'
+      queryRequest.addParameter('user', TYPES.NVarChar, userid);
+      queryRequest.addParameter('pass', TYPES.NVarChar, '');
+
+      connection.execSql(queryRequest); 
+
+      console.log('CreateAccountRecordOrLogin: logged in')
+    }
+}
+
+function SubscribeToSecretFile(reply, secretfile){
+  console.log('subscribing to secretfile: '+secretfile)
+
+  //fetch GroupItem row where groupName = secretfile
+  if(useStaticIP == false){
+    var QUERY = "UPDATE GROUPITEM SET "
+    /*
+      UPDATE table_name
+    SET column1=value1,column2=value2,...
+    WHERE some_column=some_value;
+     */
+    var rowList = new List()
+    var elementsList = new List()
+    var queryRequest = new Request(QUERY, function(err) {  
+    if (err) {  
+        console.log(err);}  
     });  
 
-    //insert values into those marked w '@'
-    queryRequest.addParameter('title', TYPES.NVarChar, title);
-    queryRequest.addParameter('desc', TYPES.NVarChar, desc);
-    queryRequest.addParameter('image', TYPES.NVarChar, imageurl);
-    queryRequest.addParameter('adminuserId', TYPES.NVarChar, '');
+    queryRequest.on('row', function(columns) {
+        
+    });
 
-    connection.execSql(queryRequest);  */
+    queryRequest.on('doneProc', function(rowCount, more) { 
+        console.log(rowList.toArray().length + ' rows returned'); 
+
+    })
+
+    connection.execSql(queryRequest)
+  } 
+
+  //add this user id to GroupItem table if not already part
+  bot.getProfile(senderid, (err, profile) => {
+    if (err) {
+      console.log(err.message)
+      throw err
+    }
+
+
+  })
+
+  //if subscribed succesfully
+  var responseMessage = 'Whenever someone posts on '+secretfile+
+    ', it will appear here from now on! Here\'s what we can do next:'
+    reply(
+      {
+        text: responseMessage, 
+        quick_replies: [
+          createQuickTextReply(PostNew, PostNew),
+          createQuickTextReply(ShowPostsString, ShowPostsString)
+        ]
+      }, (err, info) => {
+          if(err) {
+            console.log(err.message)
+            throw err
+          }
+    })
+}
+
+function CreateNewPostRecord(postText, reply){
+  console.log('Creating a new post')
+
+    if(useStaticIP == false){
+      var queryRequest = new Request(
+        'INSERT INTO POSTITEM (postImage, userId, groupID, reactionCount, body, title) VALUES (@image, @userid, @groupid, @reactionCount, @bodyText, @titleText)', 
+      function(err) {  
+        if (err) {  
+            console.log(err);
+          }  
+      });  
+
+      //insert values into those marked w '@'
+      queryRequest.addParameter('image', TYPES.NVarChar, '');
+      queryRequest.addParameter('userid', TYPES.NVarChar, '');
+      queryRequest.addParameter('groupid', TYPES.NVarChar, '');
+      queryRequest.addParameter('reactionCount', TYPES.NVarChar, '');
+      queryRequest.addParameter('bodyText', TYPES.NVarChar, postText);
+      queryRequest.addParameter('titleText', TYPES.NVarChar, '');
+
+      connection.execSql(queryRequest); 
+
+      reply({
+        text:"Posted to Secret Files!"
+        }, (err, info) => {
+          if(err){
+            console.log(err.message)
+            throw err
+          }
+        })
+      } 
+
+    console.log('CreateNewPostRecord done')
+    return true
+}
+
+function CreateNewSecretFileRecord(title, desc, imageurl) {  
+    console.log('Creating a new Secret File')
+
+    if(useStaticIP == false){
+      var queryRequest = new Request(
+        'INSERT INTO GROUPITEM (groupName, groupDesc, groupImage, adminuserId) VALUES (@title, @desc, @image, @adminuserId)', 
+      function(err) {  
+        if (err) {  
+            console.log(err);
+          }  
+      });  
+
+      //insert values into those marked w '@'
+      queryRequest.addParameter('title', TYPES.NVarChar, title);
+      queryRequest.addParameter('desc', TYPES.NVarChar, desc);
+      queryRequest.addParameter('image', TYPES.NVarChar, imageurl);
+      queryRequest.addParameter('adminuserId', TYPES.NVarChar, '');
+
+      connection.execSql(queryRequest); 
+    } 
+
     console.log('CreateNewSecretFileRecord executed')
 }  
 
 function EditSecretFileRecord(title, desc, imageurl){}
 function DeleteSecretFileRecord(){}
-//read function is integrated w relevant functions, since NodeJS doesn't provide an asynchronous friendly Tedious implementation'
-
 
 /////////////////////////////////
 
@@ -142,7 +277,7 @@ bot.on('message', (callbackObject, reply) => {
   console.log('received message '+callbackObject.message.text+ ' from user '+callbackObject.sender.id)
 
   if(callbackObject.message.quick_reply){
-    // //handles quick_replies
+    //handles quick_replies
     handleMessages(callbackObject.message.quick_reply.payload, callbackObject, reply)
   }
   else if(handleMessages(callbackObject.message.text, callbackObject, reply)){}//handles manually typed commands
@@ -160,6 +295,7 @@ bot.on('postback', (postbackContainer, reply, actions) => {
 
   //check if payload is from Get Started button in greeting screen
   if(_payload == GETSTARTEDSTRING){
+    //login
    ShowIntroMessage(reply)
   }
 
@@ -180,7 +316,13 @@ function isNullOrWhitespace(input) {
 
     return input.replace(/ /g, '').length < 1;
 }
+function removeSpaces(input){
+  return input.replace(/ /g, '')
+}
+
 function handleMessages(message, callbackObject, reply){
+    var postMessage = IsPost(message)
+    console.log('is a post? '+ postMessage)
     try{
       if(message == ShowSecretFilesString){
         console.log("ShowSecretFilesString payload condition satisfied in message event")
@@ -193,7 +335,8 @@ function handleMessages(message, callbackObject, reply){
       }
       else if(message == PostNew){
       //create new secret file via options:camera, text
-      PostNewinSecretFile(reply)
+        //PostNewinSecretFile(reply, message)
+        ExplainHowToPost(reply)
         return true
       }
       else if(message == ShowPostsString){
@@ -213,12 +356,42 @@ function handleMessages(message, callbackObject, reply){
       else if (message == CreateNewSecretFileString){
         CreateNewSecretFile(callbackObject, reply)
         return true
-      } 
+      }else if(postMessage){
+        console.log('received a post request')
+        var postText = postMessage.replace('post', '')
+        PostNewinSecretFile(reply, message)
+        //CreateNewPostRecord(postText, reply)
+        return true
+      }
     }catch(err){
       return err
     }
 
     return false
+}
+
+String.prototype.firstLetterToLowerCase = function(){
+  return this.charAt(0).toLowerCase() + this.slice(1)
+}
+function IsPost(message){
+  console.log('in IsPost')
+  if(isNullOrWhitespace(message) == false){
+    var firstpart = removeSpaces(message.substring(0, 9))
+    console.log('firstpart is:'+firstpart)
+    var stringWherePostShouldBe = firstpart.substring(0, 4)//first 4 characters in string
+    console.log('stringWherePostShouldBe is:'+stringWherePostShouldBe)
+    if(stringWherePostShouldBe.toLowerCase() == 'post'){
+      for(var c = 0;c < 3;c++){
+        if(isNullOrWhitespace(message.charAt(c))){
+          message = message.slice(c+1)
+          console.log('removed space at start of post: '+message)
+        }
+      }
+      console.log('returning post '+message.firstLetterToLowerCase())
+      return message.firstLetterToLowerCase()
+    }
+  }
+  return false
 }
 
 function Try(reply){
@@ -267,13 +440,25 @@ function ShowIntroMessage(reply){
   })
 }
 
+function ExplainHowToPost(reply){
+  reply({
+      text: "To post on Secret Files, start by typing 'Post' followed by what you wanna post. For example: 'Post Hey guys! So I wanted to share something... etc' "
+      }, (err, info) => {
+        if(err) {
+          console.log(err.message)
+          throw err
+        }
+    })
+}
+
 function handlePersistentMenuActions(_payload, senderid, reply){
   //check if payload was sent by a persistent menu item
   if(_payload == HelpPersistentMenuItem){
     messageUserTypicalCommands(_payload, reply)
   }
   else if(_payload == PostNew){
-    PostNewinSecretFile(reply)
+    //PostNewinSecretFile(reply)
+    ExplainHowToPost(reply)
   }
   else if(_payload == ShowPostsString){
     ShowAllSubscribedPosts(_payload, reply)
@@ -285,25 +470,7 @@ function handlePersistentMenuActions(_payload, senderid, reply){
   }
 }
 
-function SubscribeToSecretFile(reply, secretfile){
-  console.log('subscribing to secretfile: '+secretfile)
 
-  var responseMessage = 'Whenever someone posts on '+secretfile+
-    ', it will appear here from now on! Here\'s what we can do next:'
-    reply(
-      {
-        text: responseMessage, 
-        quick_replies: [
-          createQuickTextReply(PostNew, PostNew),
-          createQuickTextReply(ShowPostsString, ShowPostsString)
-        ]
-      }, (err, info) => {
-          if(err) {
-            console.log(err.message)
-            throw err
-          }
-    })
-}
 
 function createPersistentMenu(){
   bot.setPersistentMenu([
@@ -326,6 +493,11 @@ function createPersistentMenu(){
       "type":"postback",
       "title": ShowSecretFilesString,
       "payload": ShowSecretFilesString
+    },
+    {
+      "type":"postback",
+      "title": CreateNewSecretFileString,
+      "payload": CreateNewSecretFileString
     }
   ], (err, info)=>{
     console.log('createPersistentMenu method result: '+ info.result)
@@ -402,8 +574,9 @@ function ShowAllSubscribedPosts(payload, reply){
   })
 }
 
-function PostNewinSecretFile(reply){
-  GetNewPostTitle(reply)
+function PostNewinSecretFile(reply, message){
+  //figure out which secret file to post in
+  CreateNewPostRecord(message, reply)
 }
 function GetNewTextOnlyPost(){
 
@@ -547,7 +720,8 @@ function createTemplateAttachmentForMessage(elementsArray){
 function ShowSecretFilesSubscriptions(senderid, reply){
     console.log('ShowSecretFilesString() Activated')
 
-      /*bot.getProfile(senderid, (err, profile) => {
+    if(useStaticIP == false){
+      bot.getProfile(senderid, (err, profile) => {
         if (err) {
           console.log(err.message)
           throw err
@@ -620,7 +794,8 @@ function ShowSecretFilesSubscriptions(senderid, reply){
         });  
 
         connection.execSql(queryRequest); 
-      })*/
+      })
+    }
       
 }
 /////////////////////////////////////////////////
