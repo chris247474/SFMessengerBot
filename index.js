@@ -108,36 +108,62 @@ if(useStaticIP == false){
 
 ///////////////////////////////// SQL helper functions
 
-function CreateAccountRecordOrLogin(userid){    not done
+function Login(userid){
     console.log('CreateAccountRecordOrLogin: logging in')
+    var rowList = new List()
 
     if(useStaticIP == false){
       //check if user already logged in before
-      var selectRequest = new Request("SELECT * FROM ACCOUNTITEM WHERE username = @username", function(err){
-        if (err) {  
-          console.log(err);
-        }
-      })
-
-
-
-
-      var queryRequest = new Request(
-        'INSERT INTO ACCOUNTITEM (username, password) VALUES (@user, @pass)', 
-      function(err) {  
-        if (err) {  
+      try{
+        var selectRequest = new Request("SELECT * FROM ACCOUNTITEM WHERE username = @username", function(err){
+          if (err) {  
             console.log(err);
-          }  
-      });  
+          }
 
-      //insert values into those marked w '@'
-      queryRequest.addParameter('user', TYPES.NVarChar, userid);
-      queryRequest.addParameter('pass', TYPES.NVarChar, '');
+          if(rowList.toArray().length > 0){
+            //then userid already exists in db
+            console.log('userid ${userid} already exists in db')
+          }else{
+            CreateAccountRecord(userid)
+          }
+        })
+        selectRequest.addParameter('username', TYPES.NVarChar, userid)
 
-      connection.execSql(queryRequest); 
+        selectRequest.on('row', function(columns){
+          rowList.add(columns)
+        })
 
-      console.log('CreateAccountRecordOrLogin: logged in')
+        connection.execSql(selectRequest)
+      }catch(err){
+        console.log('Login error: '+err.message)
+      }
     }
+}
+
+function CreateAccountRecord(userid){
+  if(useStaticIP == false){
+      try{
+        var insertRequest = new Request(
+          'INSERT INTO ACCOUNTITEM (username, password) VALUES (@user, @pass)', 
+        function(err) {  
+          if (err) {  
+              console.log(err);
+            }  
+        });  
+
+        insertRequest.on('doneProc', function(rowCount, more){
+          console.log('CreateAccountRecord: created account with username '+userid)
+        })
+
+        //insert values into those marked w '@'
+        insertRequest.addParameter('user', TYPES.NVarChar, userid);
+        insertRequest.addParameter('pass', TYPES.NVarChar, '');
+
+        connection.execSql(insertRequest);
+      } catch(err){
+        console.log("CreateAccountRecord error: "+err.message)
+      }
+  }
 }
 
 function SubscribeToSecretFile(reply, secretfile){
@@ -154,17 +180,17 @@ function SubscribeToSecretFile(reply, secretfile){
     var rowList = new List()
     var elementsList = new List()
     var queryRequest = new Request(QUERY, function(err) {  
-    if (err) {  
-        console.log(err);}  
+      if (err) {  
+        console.log(err);
+      }  
     });  
 
     queryRequest.on('row', function(columns) {
-        
+        rowList.add(columns)
     });
 
     queryRequest.on('doneProc', function(rowCount, more) { 
         console.log(rowList.toArray().length + ' rows returned'); 
-
     })
 
     connection.execSql(queryRequest)
@@ -295,8 +321,8 @@ bot.on('postback', (postbackContainer, reply, actions) => {
 
   //check if payload is from Get Started button in greeting screen
   if(_payload == GETSTARTEDSTRING){
-    //login
-   ShowIntroMessage(reply)
+    Login(postbackContainer.sender.id)
+    ShowIntroMessage(reply)
   }
 
   //check if payload is a susbcribe action from ShowSecretFilesSubscriptions
