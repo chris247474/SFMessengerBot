@@ -44,14 +44,15 @@ let bot = new Bot({
 //setup db connection using SOCKSJS for static IP in heroku server
 //http://stackoverflow.com/questions/20581920/static-ip-address-with-heroku-not-proximo
 //https://devcenter.heroku.com/articles/quotaguardstatic#socks-proxy-setup
+var QUOTAGUARDSTATIC_URL='http://quotaguard7549:813f015538d1@us-east-static-02.quotaguard.com:9293'
 var mysql = require('mysql2');
 var url = require("url");
 var SocksConnection = require('socksjs');
 var remote_options = {
-host:'chrisdavetv.database.windows.net',
-port: 3306
+  host:'chrisdavetv.database.windows.net',
+  port: 3306
 };
-var proxy = url.parse(process.env.QUOTAGUARDSTATIC_URL);
+var proxy = url.parse(process.env.QUOTAGUARDSTATIC_URL || QUOTAGUARDSTATIC_URL);
 var auth = proxy.auth;
 var username = auth.split(":")[0]
 var pass = auth.split(":")[1]
