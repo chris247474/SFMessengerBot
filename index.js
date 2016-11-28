@@ -41,6 +41,7 @@ let bot = new Bot({
   verify: 'token'
 })
 
+var VALUESEPARATOR = ';'
 var useStaticIP = false
 
 //setup db connection using SOCKSJS for static IP in heroku server
@@ -166,62 +167,72 @@ function CreateAccountRecord(userid){
   }
 }
 
-function SubscribeToSecretFile(reply, secretfile){
+function SubscribeToSecretFile(reply, secretfile, userid){
   console.log('subscribing to secretfile: '+secretfile)
+  var userSubscriptionList = ''//get value of current user subscriptions
 
-  //fetch GroupItem row where groupName = secretfile
   if(useStaticIP == false){
-    var QUERY = "UPDATE GROUPITEM SET "
-    /*
-      UPDATE table_name
-    SET column1=value1,column2=value2,...
-    WHERE some_column=some_value;
-     */
-    var rowList = new List()
-    var elementsList = new List()
-    var queryRequest = new Request(QUERY, function(err) {  
+    var accountRowList = new List()
+    var selectRequest = new Request("SELECT * FROM ACCOUNTITEM WHERE username=@userid", function(err){
       if (err) {  
         console.log(err);
       }  
-    });  
 
-    queryRequest.on('row', function(columns) {
-        rowList.add(columns)
-    });
+      var arr = accountRowList.toArray()
+      if(arr.length > 0){
+        userSubscriptionList = (arr[0])[6].value
+        userSubscriptionList += secretfile+VALUESEPARATOR
 
-    queryRequest.on('doneProc', function(rowCount, more) { 
-        console.log(rowList.toArray().length + ' rows returned'); 
+        //go ahead and update value
+        var rowList = new List()
+        var updateRequest = new Request("UPDATE ACCOUNTITEM SET subscribedTo=@subscriptions WHERE username=@userid", function(err) {  
+          if (err) {  
+            console.log(err);
+          }  
+
+          //if subscribed succesfully
+          var responseMessage = 'Whenever someone posts on '+secretfile+
+            ', it will appear here from now on! Here\'s what we can do next:'
+          reply(
+            {
+              text: responseMessage, 
+              quick_replies: [
+                createQuickTextReply(PostNew, PostNew),
+                createQuickTextReply(ShowPostsString, ShowPostsString)
+              ]
+            }, (err, info) => {
+                if(err) {
+                  console.log(err.message)
+                  throw err
+                }
+          })
+        });  
+
+        updateRequest.addParameter('userid', TYPES.NVarChar, userid)
+        updateRequest.addParameter('subscriptions', TYPES.NVarChar, userSubscriptionList)
+
+        updateRequest.on('row', function(columns) {
+            rowList.add(columns)
+        });
+
+        connection.execSql(updateRequest)
+      }else{
+        console.log('SubscribeToSecretFile: no account found. creating one then subscribing again')
+      }
+
+      
     })
 
-    connection.execSql(queryRequest)
+    selectRequest.addParameter('userid', TYPES.NVarChar, userid)
+    selectRequest.on('row', function(columns){
+      accountRowList.add(columns)
+    })
+    connection.execSql(selectRequest)
+
+    
   } 
 
-  //add this user id to GroupItem table if not already part
-  bot.getProfile(senderid, (err, profile) => {
-    if (err) {
-      console.log(err.message)
-      throw err
-    }
-
-
-  })
-
-  //if subscribed succesfully
-  var responseMessage = 'Whenever someone posts on '+secretfile+
-    ', it will appear here from now on! Here\'s what we can do next:'
-    reply(
-      {
-        text: responseMessage, 
-        quick_replies: [
-          createQuickTextReply(PostNew, PostNew),
-          createQuickTextReply(ShowPostsString, ShowPostsString)
-        ]
-      }, (err, info) => {
-          if(err) {
-            console.log(err.message)
-            throw err
-          }
-    })
+  
 }
 
 function CreateNewPostRecord(postText, reply){
@@ -327,7 +338,7 @@ bot.on('postback', (postbackContainer, reply, actions) => {
 
   //check if payload is a susbcribe action from ShowSecretFilesSubscriptions
   else if(_payload == SubscribeString){
-    SubscribeToSecretFile(reply, 'DLSU Secret Files')//, extractSecretFileNameFromPayload(_payload))//fetch from db
+    SubscribeToSecretFile(reply, 'DLSU Secret Files', postbackContainer.sender.id)//, extractSecretFileNameFromPayload(_payload))//fetch from db
   }
 
   //actions from hamburger icon on left of message field
