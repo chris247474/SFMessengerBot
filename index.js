@@ -173,7 +173,7 @@ function SubscribeToSecretFile(reply, secretfile, userid){
 
   if(useStaticIP == false){
     var accountRowList = new List()
-    var selectRequest = new Request("SELECT * FROM ACCOUNTITEM WHERE username=@userid", function(err){
+    var selectRequest = new Request("SELECT * FROM ACCOUNTITEM WHERE username=@userid", function(err){//update GroupItem subscribers field too
       if (err) {  
         console.log(err);
       }  
@@ -338,7 +338,8 @@ bot.on('postback', (postbackContainer, reply, actions) => {
 
   //check if payload is a susbcribe action from ShowSecretFilesSubscriptions
   else if(_payload == SubscribeString){
-    SubscribeToSecretFile(reply, 'DLSU Secret Files', postbackContainer.sender.id)//, extractSecretFileNameFromPayload(_payload))//fetch from db
+    //extract secretfile name from postbackContainer
+    SubscribeToSecretFile(reply, 'DLSU Secret Files', postbackContainer.sender.id)
   }
 
   //actions from hamburger icon on left of message field
