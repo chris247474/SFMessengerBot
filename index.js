@@ -17,9 +17,6 @@ var Connection = tedious.Connection;
 var Request = tedious.Request;  
 var TYPES = tedious.TYPES; 
 
-//DB format result strings
-var SEPARATORSTRING = '-+++-'
-
 //microsoft azure secret files application
 var azureDBConnStr = "Driver={ODBC Driver 13 for SQL Server};Server=tcp:chrisdavetv.database.windows.net,1433;Database=chrisdavetvapps;Uid=chrisdavetv@chrisdavetv;Pwd={Chrisujt5287324747@@};Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
 
@@ -30,7 +27,8 @@ var ShowPostsString = "Read Posts"
 var ShowSecretFilesString = "Browse Secret Files"
 var JoinString = "Join"
 var HelpPersistentMenuItem = "Help"
-var SubscribeString = "Subscribe"
+var SubscribeStringPostback = "SubscribePostback"
+var PostStringPostback = "PostPostback"
 var HowDoesItWorkString = "How does it work?"
 var TryItOutString = 'Try it out'
 var CreateNewSecretFileString = "Create Secret File"
@@ -41,7 +39,10 @@ let bot = new Bot({
   verify: 'token'
 })
 
+//used to separate values in db fields
 var VALUESEPARATOR = ';'
+
+var pendingPostText = ''
 var useStaticIP = false
 
 //setup db connection using SOCKSJS for static IP in heroku server
@@ -167,6 +168,8 @@ function CreateAccountRecord(userid){
   }
 }
 
+//#DLSUSecretFiles1234 - number should be counter field in db
+
 function SubscribeToSecretFile(reply, secretfile, userid){
   console.log('subscribing to secretfile: '+secretfile)
   var userSubscriptionList = ''//get value of current user subscriptions
@@ -235,37 +238,65 @@ function SubscribeToSecretFile(reply, secretfile, userid){
   
 }
 
-function CreateNewPostRecord(postText, reply){
+function SomethingWentWrong(actionString, reply){
+  reply({
+    text:"Oops! Something went wrong while "+actionString+". Please try again"
+    }, (err, info) => {
+      if(err){
+        console.log(err.message)
+        throw err
+      }
+  })
+}
+function TellUserSuccess(message, reply){
+  reply({
+    text: message
+    }, (err, info) => {
+      if(err){
+        console.log(err.message)
+        throw err
+      }
+  })
+}
+
+function CreateNewPostRecord(postText, reply, secretfileid){//test
   console.log('Creating a new post')
 
     if(useStaticIP == false){
-      var queryRequest = new Request(
-        'INSERT INTO POSTITEM (postImage, userId, groupID, reactionCount, body, title) VALUES (@image, @userid, @groupid, @reactionCount, @bodyText, @titleText)', 
+      var rowList = new List()
+      var totalSecretFileCount = 0
+      var selectRequest = new Request(
+        'SELECT * FROM POSTITEM WHERE groupID=@secretfileid',
       function(err) {  
         if (err) {  
+          console.log(err);
+        }  
+
+        totalSecretFileCount = (rowList.toArray()).length//used for number in #DLSU Secret Files <number here>
+        var queryRequest = new Request(
+          'INSERT INTO POSTITEM (postImage, userId, groupID, reactionCount, body, title) VALUES (@image, @userid, @groupid, @reactionCount, @bodyText, @titleText)', 
+        function(err) {  
+          if (err) {  
             console.log(err);
-          }  
-      });  
-
-      //insert values into those marked w '@'
-      queryRequest.addParameter('image', TYPES.NVarChar, '');
-      queryRequest.addParameter('userid', TYPES.NVarChar, '');
-      queryRequest.addParameter('groupid', TYPES.NVarChar, '');
-      queryRequest.addParameter('reactionCount', TYPES.NVarChar, '');
-      queryRequest.addParameter('bodyText', TYPES.NVarChar, postText);
-      queryRequest.addParameter('titleText', TYPES.NVarChar, '');
-
-      connection.execSql(queryRequest); 
-
-      reply({
-        text:"Posted to Secret Files!"
-        }, (err, info) => {
-          if(err){
-            console.log(err.message)
-            throw err
+            SomethingWentWrong("posting", reply)
+          } else{
+            TellUserSuccess("Posted to "+secretfileid+"!", reply)
           }
-        })
-      } 
+        });  
+        queryRequest.addParameter('image', TYPES.NVarChar, '');
+        queryRequest.addParameter('userid', TYPES.NVarChar, '');
+        queryRequest.addParameter('groupid', TYPES.NVarChar, secretfileid);
+        queryRequest.addParameter('reactionCount', TYPES.NVarChar, '');
+        queryRequest.addParameter('bodyText', TYPES.NVarChar, postText);
+        queryRequest.addParameter('titleText', TYPES.NVarChar, '#'+removeSpaces(secretfileid)+totalSecretFileCount);
+        connection.execSql(queryRequest); 
+      });  
+      selectRequest.addParameter('secretfileid', TYPES.NVarChar, secretfileid)
+      selectRequest.on('row', function(columns){
+        rowList.add(columns)
+      })
+      connection.execSql(selectRequest)
+    } 
 
     console.log('CreateNewPostRecord done')
     return true
@@ -337,9 +368,13 @@ bot.on('postback', (postbackContainer, reply, actions) => {
   }
 
   //check if payload is a susbcribe action from ShowSecretFilesSubscriptions
-  else if(_payload == SubscribeString){
+  else if(_payload.includes(SubscribeStringPostback)){
     //extract secretfile name from postbackContainer
-    SubscribeToSecretFile(reply, 'DLSU Secret Files', postbackContainer.sender.id)
+    SubscribeToSecretFile(reply, extractSecretFileName(_payload), postbackContainer.sender.id)
+  }else if(_payload.includes(PostStringPostback)){
+    console.log('continue posting condition satisfied. postText is '+pendingPostText)
+    ContinuePostingInNewSecretFile(pendingPostText, reply, extractSecretFileName(_payload))
+    pendingPostText = ''
   }
 
   //actions from hamburger icon on left of message field
@@ -349,6 +384,12 @@ bot.on('postback', (postbackContainer, reply, actions) => {
 ///////////////////////////////
 
 /////////////////////////////// Helper functions
+function extractSecretFileName(payload){
+  var arr = payload.split(VALUESEPARATOR)
+  console.log('extracted secret file '+arr[1]+' from payload')
+  return arr[1]
+}
+
 function isNullOrWhitespace(input) {
     if (typeof input === 'undefined' || input == null) return true;
 
@@ -364,11 +405,11 @@ function handleMessages(message, callbackObject, reply){
     try{
       if(message == ShowSecretFilesString){
         console.log("ShowSecretFilesString payload condition satisfied in message event")
-        ShowSecretFilesSubscriptions(callbackObject.sender.id, reply)
+        ShowSecretFilesSubscriptions(callbackObject.sender.id, reply, SubscribeStringPostback)
         return true
       }else if(message == JoinString){// || operator seems to trigger a satisfied condition on the first if statement here
         console.log("JoinString payload condition satisfied in message event")
-        ShowSecretFilesSubscriptions(callbackObject.sender.id, reply)
+        ShowSecretFilesSubscriptions(callbackObject.sender.id, reply, SubscribeStringPostback)
         return true
       }
       else if(message == PostNew){
@@ -397,8 +438,8 @@ function handleMessages(message, callbackObject, reply){
       }else if(postMessage){
         console.log('received a post request')
         var postText = postMessage.replace('post', '')
-        PostNewinSecretFile(reply, message)
-        //CreateNewPostRecord(postText, reply)
+        pendingPostText = postText
+        PostNewinSecretFile(reply, callbackObject.sender.id)
         return true
       }
     }catch(err){
@@ -502,7 +543,7 @@ function handlePersistentMenuActions(_payload, senderid, reply){
     ShowAllSubscribedPosts(_payload, reply)
   }
   else if(_payload == ShowSecretFilesString){
-   ShowSecretFilesSubscriptions(senderid, reply)
+   ShowSecretFilesSubscriptions(senderid, reply, SubscribeStringPostback)
   }else if(_payload == CreateNewSecretFileString){
     CreateNewSecretFile(_payload, reply)
   }
@@ -612,10 +653,27 @@ function ShowAllSubscribedPosts(payload, reply){
   })
 }
 
-function PostNewinSecretFile(reply, message){
-  //figure out which secret file to post in
-  CreateNewPostRecord(message, reply)
+function PostNewinSecretFile(reply, senderid){
+  //pick a secretfile to post in
+  reply({
+    text:'Which Secret File do you want to post in?'
+  }, (err, info) => {
+    if(err){
+      console.log(err.message)
+      throw err
+    }
+  })
+  ShowSecretFilesSubscriptions(senderid, reply, PostStringPostback)
 }
+function ContinuePostingInNewSecretFile(message, reply, secretfileid){
+  console.log('In ContinuePostingInNewSecretFile')
+  if(secretfileid){
+    CreateNewPostRecord(message, reply, secretfileid)
+  }else{
+    console.log('something wrong with secretfileid string:'+secretfileid)
+  }
+}
+
 function GetNewTextOnlyPost(){
 
 }
@@ -670,9 +728,7 @@ function CreateNewSecretFile(payload, reply){
     }
   })
 
-  CreateNewSecretFileRecord('Your very own Secret File', 'Description here', '')
-  
-  //SubscribeToSecretFile(reply, "DLSU Secret Files")
+  CreateNewSecretFileRecord('Ateneo Secret Files', 'Description here', '')
 }
 
 function createQuickTextReply(_title, _payload){
@@ -707,11 +763,11 @@ function createMessageOptions(){
   ]
 }
 
-function createButton(type, title){
+function createButton(type, title, postbackPayloadTypeString){
   var button = {
     "type":type,
     "title":title,
-    "payload": SubscribeString//+'-'+title//make more specific w db later
+    "payload": postbackPayloadTypeString
   }
   console.log('Creating button with payload value '+ button.payload)
   return button 
@@ -755,8 +811,14 @@ function createTemplateAttachmentForMessage(elementsArray){
       }
 }
 
-function ShowSecretFilesSubscriptions(senderid, reply){
+function ShowSecretFilesSubscriptions(senderid, reply, postbackPayloadTypeString){
     console.log('ShowSecretFilesString() Activated')
+    var buttonText = ''
+    if(postbackPayloadTypeString.includes(SubscribeStringPostback)){
+      buttonText = "Subscribe"
+    }else{
+      buttonText = "Post here"
+    }
 
     if(useStaticIP == false){
       bot.getProfile(senderid, (err, profile) => {
@@ -795,7 +857,7 @@ function ShowSecretFilesSubscriptions(senderid, reply){
               "https://4.bp.blogspot.com", 
               "https://4.bp.blogspot.com/-BB8-tshB9fk/WA9IvvztmfI/AAAAAAAAcHU/hwMnPbAM4lUx8FtCTiSp7IpIes-S0RkLgCLcB/s640/dlsu-campus.jpg", 
               [
-                createButton("postback", "Subscribe")
+                createButton("postback", buttonText, postbackPayloadTypeString+VALUESEPARATOR+columns[5].value)
               ]
             ))
           })
