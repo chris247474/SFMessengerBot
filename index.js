@@ -17,6 +17,21 @@ var Connection = tedious.Connection;
 var Request = tedious.Request;  
 var TYPES = tedious.TYPES; 
 
+//wit.ai setup stuff
+const crypto = require('crypto');
+const fetch = require('node-fetch');
+var Wit = require('node-wit').Wit;
+var log = require('node-wit').log;
+const WIT_TOKEN = process.env.WIT_TOKEN || '6ILCGOHSHUJJ2BXAS3QHKWVSREOJG6FG';
+//right now, only some functions rely on Wit.ai, so need a bool to deactivate my own recognition code when calling Wit.ai
+var WitAiHasControl = false
+//use this flag to mark when an action is done so wit.ai can reset the session to prevent context confusion
+var contextDone = false
+
+//just some flags for keeping track of posts read by user in secret files
+var postCounter = 0
+var allPostsRead = false
+
 //microsoft azure secret files application
 var azureDBConnStr = "Driver={ODBC Driver 13 for SQL Server};Server=tcp:chrisdavetv.database.windows.net,1433;Database=chrisdavetvapps;Uid=chrisdavetv@chrisdavetv;Pwd={Chrisujt5287324747@@};Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
 
@@ -32,12 +47,220 @@ var PostStringPostback = "PostPostback"
 var HowDoesItWorkString = "How does it work?"
 var TryItOutString = 'Try it out'
 var CreateNewSecretFileString = "Create Secret File"
+var postbackCommentOnPostString = 'Comment'
+var postbackReadMorePostsString = 'Read More'
+var postbackReadFromThisSecretFileString = 'Read From Here'
+
+const FB_PAGE_TOKEN = 'EAAX2onbWfdMBAGsG7XKJIDWuuZBoPQVt0euv438fQsWrE1aRNJGxERWRR9n1QQN7upG6k3xrwwodgEdZBibLnQFGtDsA1wT8oTnSTJe5pNeL2kqquZCDM5UopTXYpoWsBfh8sO673Uz4vzV3osCVDSxJZBKvWZBfJXCUag9bRdwZDZD'
 
 //initialize messenger-bot
 let bot = new Bot({
-  token: 'EAAX2onbWfdMBAGsG7XKJIDWuuZBoPQVt0euv438fQsWrE1aRNJGxERWRR9n1QQN7upG6k3xrwwodgEdZBibLnQFGtDsA1wT8oTnSTJe5pNeL2kqquZCDM5UopTXYpoWsBfh8sO673Uz4vzV3osCVDSxJZBKvWZBfJXCUag9bRdwZDZD',
+  token: FB_PAGE_TOKEN,
   verify: 'token'
 })
+
+//////////////////////////////////////////from wit.ai messenger.js example
+// This will contain all user sessions.
+// Each session has an entry:
+// sessionId -> {fbid: facebookUserId, context: sessionState}
+const sessions = {};
+
+const findOrCreateSession = (fbid) => {
+  let sessionId;
+  // Let's see if we already have a session for the user fbid
+  Object.keys(sessions).forEach(k => {
+    if (sessions[k].fbid === fbid) {
+      // Yep, got it!
+      sessionId = k;
+    }
+  });
+  if (!sessionId) {
+    // No session found for user fbid, let's create a new one
+    sessionId = new Date().toISOString();
+    sessions[sessionId] = {fbid: fbid, context: {}};
+  }
+  return sessionId;
+};
+
+const addSecretFilesStringToTitleIfNone = (title) => {
+  const SECRETFILESSTRING = 'Secret Files'
+  if(title.includes(SECRETFILESSTRING)){
+    console.log('title already includes \'Secret Files\' ')
+  }else{
+    title = title+' '+SECRETFILESSTRING
+  }
+  return title
+}
+
+const firstEntityValue = (entities, entity) => {
+  try{
+    console.log('contents of entities is '+entities[entity])
+    var eithernull = entities && entities[entity]
+    var isArray = Array.isArray(entities[entity])
+    var hasChars = entities[entity].length > 0
+    var valueNotNull = entities[entity][0].value
+    console.log('either null? '+eithernull)
+    console.log('isArray? '+isArray)
+    console.log('hasChars? '+hasChars)
+    console.log('value not nul? '+valueNotNull)
+
+    const val = eithernull && isArray && hasChars && valueNotNull
+    if (!val) {
+      console.log('firstEntityValue condition failed, returning null')
+      return null;
+    }
+    return typeof val === 'object' ? val.value : val;
+  }catch(err){
+    console.log('wit.ai most likely didn\'t understand a message')
+  }
+  return null
+};
+const fbMessage = (id, text) => {
+  const body = JSON.stringify({
+    recipient: { id },
+    message: { text },
+  });
+  const qs = 'access_token=' + encodeURIComponent(FB_PAGE_TOKEN);
+  return fetch('https://graph.facebook.com/me/messages?' + qs, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body,
+  })
+  .then(rsp => rsp.json())
+  .then(json => {
+    if (json.error && json.error.message) {
+      throw new Error(json.error.message);
+    }
+    return json;
+  });
+};
+
+// Our bot actions
+const actions = {
+  send({sessionId}, {text}) {
+    // Our bot has something to say!
+    // Let's retrieve the Facebook user whose session belongs to
+    const recipientId = sessions[sessionId].fbid;
+    if (recipientId) {
+      // Yay, we found our recipient!
+      // Let's forward our bot response to her.
+      // We return a promise to let our bot know when we're done sending
+      return fbMessage(recipientId, text)
+      .then(() => null)
+      .catch((err) => {
+        console.error(
+          'Oops! An error occurred while forwarding the response to',
+          recipientId,
+          ':',
+          err.stack || err
+        );
+      });
+    } else {
+      console.error('Oops! Couldn\'t find user for session:', sessionId);
+      // Giving the wheel back to our bot
+      return Promise.resolve()
+    }
+  },// You should implement your custom actions here
+  storeSecretFileDesc({context, entities}){
+    return new Promise(function(resolve, reject) {
+      context.descriptionText =  firstEntityValue(entities, 'description')
+      if (context.descriptionText) {
+        delete context.failedSecretFileDescription;
+      } else {
+        context.failedSecretFileDescription = true;
+        delete context.descriptionText;
+      }
+      return resolve(context)
+    })
+  },
+  storeSecretFileTitle({context, entities}){
+    return new Promise(function(resolve, reject) {
+      //add secretFileName (entity) value to context so createNewSecretFile method can access it
+      var title = firstEntityValue(entities, 'secretFileName')
+      context.secretFileTitleText =  addSecretFilesStringToTitleIfNone(title)
+      if (context.secretFileTitleText) {
+        delete context.failedSecretFileTitle;
+      } else {
+        context.failedSecretFileTitle = true;
+        delete context.secretFileTitleText;
+      }
+      return resolve(context)
+    })
+  },
+  createNewSecretFile({context}) {
+    var descText = ''
+    return new Promise(function(resolve, reject) {
+      if(context.secretFileTitleText){
+        if(context.descriptionText){
+            descText = context.descriptionText
+        }else {
+            descText = 'Description recognition failed'
+        }
+        console.log('secretFileText is '+context.secretFileTitleText+' desc is '+descText)
+        CreateNewSecretFileRecord(context.secretFileTitleText, descText, '')
+      }else{
+        console.log('The Secret File title is null, please try again')
+      }
+      
+      console.log('done with wit.ai call, returning text recognition to local functions')
+      endWitAISession_HandleAllMessagesLocally()
+      context.createSecretFileDone = true
+      return resolve(context);
+    });
+  },
+};
+
+// Setting up our wit.ai bot
+const wit = new Wit({
+  accessToken: WIT_TOKEN,
+  actions,
+  logger: new log.Logger(log.INFO)
+});
+
+//wit.ai helper functions
+function startWitAISession_ForwardAllMessages(senderid, messageToProcess){
+  WitAiHasControl = true
+  SendMessageToWitAI(senderid, messageToProcess)
+}
+function endWitAISession_HandleAllMessagesLocally(){
+  WitAiHasControl = false
+}
+function SendMessageToWitAI(senderid, messageToProcess){
+  //WitAiHasControl = true
+  const sessionId = findOrCreateSession(senderid);
+  wit.runActions(
+    sessionId, // the user's current session
+    messageToProcess, // the user's message
+    sessions[sessionId].context // the user's current session state
+  ).then((context) => {
+    
+
+    // Based on the session state, you might want to reset the session.
+    // This depends heavily on the business logic of your bot.
+    // Example:
+    // if (context['done']) {
+    //   delete sessions[sessionId];
+    // }
+
+    // Updating the user's current session state
+    if(WitAiHasControl == true){
+      sessions[sessionId].context = context;
+      // Our bot did everything it has to do.
+      // Now it's waiting for further messages to proceed.
+      console.log('Waiting for next user messages');
+    }else{
+      delete sessions[sessionId]
+      console.log('finished session. Any new wit.ai calls will start a new session free of context');
+    }
+  })
+  .catch((err) => {
+    console.error('Oops! Got an error from Wit: ', err.stack || err);
+  })
+
+  
+}
+
+///////////////////////////////////////////
 
 //used to separate values in db fields
 var VALUESEPARATOR = ';'
@@ -142,6 +365,54 @@ function Login(userid){
     }
 }
 
+function IsDoneReadingAllPostsInSecretFile(secretFileName){
+  if(postCounter == 0 && allPostsRead == true){
+    return true
+  }
+  return false
+}
+
+function FetchPostsInSecretFile(secretFileName){
+  var postsList = new List()
+  if(IsDoneReadingAllPostsInSecretFile(secretFileName)){
+    reply({text: 'That\s all the posts in '+secretFileName+' for now. I\'ll notify you when another is posted!'/*,
+            quick_replies: [
+
+            ]*/
+          },
+      (err, info) => {
+        if(err){
+          console.log(err.message)
+          throw err
+        }
+    })
+  }else{
+    var getPostsRequest = new Request(
+      'SELECT * FROM POSTITEM WHERE groupID=@groupname ORDER BY createdAt DESC', 
+      function(err){
+      if (err) {  
+        console.log(err);
+      } 
+
+      //when query is done executing
+      ShowPostsToUser([ postsList[postCounter] ])
+      if(postCounter < postsList.toArray().length){
+        postCounter++
+      }else{
+        postCounter = 0
+        allPostsRead = true
+      }
+    })
+    getPostsRequest.addParameter('groupname', TYPES.NVarChar, secretFileName)
+
+    getPostsRequest.on('row', function(columns){
+      postsList.add(columns)
+    })
+
+    connection.execSql(getPostsRequest)
+    }
+}
+
 function CreateAccountRecord(userid){
   if(useStaticIP == false){
       try{
@@ -209,6 +480,8 @@ function SubscribeToSecretFile(reply, secretfile, userid){
                   throw err
                 }
           })
+
+          //update GroupItem table too //consider executing on one statement
         });  
 
         updateRequest.addParameter('userid', TYPES.NVarChar, userid)
@@ -231,11 +504,18 @@ function SubscribeToSecretFile(reply, secretfile, userid){
       accountRowList.add(columns)
     })
     connection.execSql(selectRequest)
-
-    
   } 
+}
 
-  
+function ReplyUnderConstruction(reply){
+  reply({
+    text: "Oops! Sorry this feature is still under construction"
+  }, (err, info) => {
+    if(err){
+      console.log(err.message)
+      throw err
+    }
+  })
 }
 
 function SomethingWentWrong(actionString, reply){
@@ -259,7 +539,7 @@ function TellUserSuccess(message, reply){
   })
 }
 
-function CreateNewPostRecord(postText, reply, secretfileid){//test
+function CreateNewPostRecord(postText, reply, secretfileid){
   console.log('Creating a new post')
 
     if(useStaticIP == false){
@@ -303,27 +583,33 @@ function CreateNewPostRecord(postText, reply, secretfileid){//test
 }
 
 function CreateNewSecretFileRecord(title, desc, imageurl) {  
-    console.log('Creating a new Secret File')
+    try{
+      console.log('Creating a new Secret File: '+title+' with description: '+desc)
 
-    if(useStaticIP == false){
-      var queryRequest = new Request(
-        'INSERT INTO GROUPITEM (groupName, groupDesc, groupImage, adminuserId) VALUES (@title, @desc, @image, @adminuserId)', 
-      function(err) {  
-        if (err) {  
-            console.log(err);
-          }  
-      });  
+      if(useStaticIP == false){
+        var queryRequest = new Request(
+          'INSERT INTO GROUPITEM (groupName, groupDesc, groupImage, adminuserId) VALUES (@title, @desc, @image, @adminuserId)', 
+        function(err) {  
+          if (err) {  
+              console.log(err);
+            }  
+        });  
 
-      //insert values into those marked w '@'
-      queryRequest.addParameter('title', TYPES.NVarChar, title);
-      queryRequest.addParameter('desc', TYPES.NVarChar, desc);
-      queryRequest.addParameter('image', TYPES.NVarChar, imageurl);
-      queryRequest.addParameter('adminuserId', TYPES.NVarChar, '');
+        //insert values into those marked w '@'
+        queryRequest.addParameter('title', TYPES.NVarChar, title);
+        queryRequest.addParameter('desc', TYPES.NVarChar, desc);
+        queryRequest.addParameter('image', TYPES.NVarChar, imageurl);
+        queryRequest.addParameter('adminuserId', TYPES.NVarChar, '');
 
-      connection.execSql(queryRequest); 
-    } 
+        connection.execSql(queryRequest); 
+      } 
 
-    console.log('CreateNewSecretFileRecord executed')
+      console.log('CreateNewSecretFileRecord executed')
+    }catch(err){
+      console.log('CreateNewSecretFileRecord error: '+err.message)
+      return err
+    }
+    return true
 }  
 
 function EditSecretFileRecord(title, desc, imageurl){}
@@ -344,14 +630,19 @@ bot.on('error', (err) => {
 bot.on('message', (callbackObject, reply) => {
   console.log('received message '+callbackObject.message.text+ ' from user '+callbackObject.sender.id)
 
-  if(callbackObject.message.quick_reply){
-    //handles quick_replies
-    handleMessages(callbackObject.message.quick_reply.payload, callbackObject, reply)
+  if(WitAiHasControl == false){
+    if(callbackObject.message.quick_reply){
+      //handles quick_replies
+      handleMessages(callbackObject.message.quick_reply.payload, callbackObject, reply)
+    }
+    else if(handleMessages(callbackObject.message.text, callbackObject, reply)){}//handles manually typed commands
+    else{
+      messageUserTypicalCommands(callbackObject, reply)//handles text otherwise not understood by bot
+    }
+  }else {
+    SendMessageToWitAI(callbackObject.sender.id, callbackObject.message.text)
   }
-  else if(handleMessages(callbackObject.message.text, callbackObject, reply)){}//handles manually typed commands
-  else{
-    messageUserTypicalCommands(callbackObject, reply)//handles text otherwise not understood by bot
-  }
+  
 })
 
 bot.on('postback', (postbackContainer, reply, actions) => {
@@ -370,11 +661,19 @@ bot.on('postback', (postbackContainer, reply, actions) => {
   //check if payload is a susbcribe action from ShowSecretFilesSubscriptions
   else if(_payload.includes(SubscribeStringPostback)){
     //extract secretfile name from postbackContainer
-    SubscribeToSecretFile(reply, extractSecretFileName(_payload), postbackContainer.sender.id)
+    SubscribeToSecretFile(reply, extractDataFromPayload(_payload, 1), postbackContainer.sender.id)
   }else if(_payload.includes(PostStringPostback)){
     console.log('continue posting condition satisfied. postText is '+pendingPostText)
-    ContinuePostingInNewSecretFile(pendingPostText, reply, extractSecretFileName(_payload))
+    ContinuePostingInNewSecretFile(pendingPostText, reply, extractDataFromPayload(_payload, 1))
     pendingPostText = ''
+  }else if(_payload.includes(postbackCommentOnPostString)){
+    //handle comment on post
+    ReplyUnderConstruction(reply)
+  }else if(_payload.includes(postbackReadMorePostsString)){
+    //load another post
+    FetchPostsInSecretFile(extractDataFromPayload(_payload, 2))
+  }else if(_payload.includes(postbackReadFromThisSecretFileString)){
+    FetchPostsInSecretFile(extractDataFromPayload(_payload, 1))
   }
 
   //actions from hamburger icon on left of message field
@@ -384,10 +683,47 @@ bot.on('postback', (postbackContainer, reply, actions) => {
 ///////////////////////////////
 
 /////////////////////////////// Helper functions
-function extractSecretFileName(payload){
+function ShowPostsToUser(postList){
+  var elementsList = new List()
+  postList.forEach(function(columns){
+    elementsList.add(
+      createElementForPayloadForAttachmentForMessage(
+        columns[9].value,
+        columns[10].value,
+        '', '',
+        //"https://4.bp.blogspot.com", 
+        //"https://4.bp.blogspot.com/-BB8-tshB9fk/WA9IvvztmfI/AAAAAAAAcHU/hwMnPbAM4lUx8FtCTiSp7IpIes-S0RkLgCLcB/s640/dlsu-campus.jpg", 
+        [
+          createButton("postback", 'Comment', 
+            postbackCommentOnPostString+VALUESEPARATOR+columns[0].value+VALUESEPARATOR+columns[7].value),
+          createButton("postback", 'Read More', 
+            postbackReadMorePostsString+VALUESEPARATOR+columns[0].value+VALUESEPARATOR+columns[7].value)
+        ]
+      )
+    )
+  })
+
+  ShowAttachmentToUser(elementsList.toArray())
+}
+
+function ShowAttachmentToUser(elements){
+  reply({ 
+      attachment:createTemplateAttachmentForMessage(elements)
+  }, (err) => {
+    if (err) {
+      console.log(err.message)
+      throw err
+    }
+
+    console.log(`Showing attachment to user `+ senderid)
+  })
+}
+
+//data is at index 1 and onwards. index 0 contains the postback type string
+function extractDataFromPayload(payload, columnNum){
   var arr = payload.split(VALUESEPARATOR)
   console.log('extracted secret file '+arr[1]+' from payload')
-  return arr[1]
+  return arr[columnNum]
 }
 
 function isNullOrWhitespace(input) {
@@ -420,7 +756,7 @@ function handleMessages(message, callbackObject, reply){
       }
       else if(message == ShowPostsString){
         //show all posts from currently subscribed Secret Files
-        ShowAllSubscribedPosts(callbackObject, reply)
+        ShowAllSubscribedPosts(callbackObject, reply, callbackObject.sender.id)
         return true
       }
       else if(message == HowDoesItWorkString){
@@ -433,7 +769,8 @@ function handleMessages(message, callbackObject, reply){
         return true
       }
       else if (message == CreateNewSecretFileString){
-        CreateNewSecretFile(callbackObject, reply)
+        console.log('entered CreateNewSecretFileString message condition')
+        startWitAISession_ForwardAllMessages(callbackObject.sender.id, message)
         return true
       }else if(postMessage){
         console.log('received a post request')
@@ -531,6 +868,7 @@ function ExplainHowToPost(reply){
 }
 
 function handlePersistentMenuActions(_payload, senderid, reply){
+  console.log('In handlePersistentMenuActions')
   //check if payload was sent by a persistent menu item
   if(_payload == HelpPersistentMenuItem){
     messageUserTypicalCommands(_payload, reply)
@@ -540,15 +878,15 @@ function handlePersistentMenuActions(_payload, senderid, reply){
     ExplainHowToPost(reply)
   }
   else if(_payload == ShowPostsString){
-    ShowAllSubscribedPosts(_payload, reply)
+    ShowAllSubscribedPosts(_payload, reply, senderid)
   }
   else if(_payload == ShowSecretFilesString){
    ShowSecretFilesSubscriptions(senderid, reply, SubscribeStringPostback)
   }else if(_payload == CreateNewSecretFileString){
-    CreateNewSecretFile(_payload, reply)
+    console.log('entered CreateNewSecretFileString postback condition')
+    startWitAISession_ForwardAllMessages(senderid, _payload)
   }
 }
-
 
 
 function createPersistentMenu(){
@@ -642,11 +980,115 @@ function addPersistentMenu(){
 
 }
 
-function ShowAllSubscribedPosts(payload, reply){
-  reply({
-    text: "Oops! Sorry this feature is still under construction"
-  }, (err, info) => {
-    if(err){
+function ShowAllSubscribedPosts(payload, reply, userid){
+  console.log('In ShowAllSubscribedPosts')
+  var secretfilename = ''
+  var elementsList = new List()
+
+  //ask user which subscribed secret file to read from
+  var accountList = new List()
+  var selectRequest = new Request(
+    'SELECT subscribedTo FROM ACCOUNTITEM WHERE username=@userid',
+    function(err){
+      if (err) {  
+        console.log(err);
+      } 
+
+      //done executing
+      var accountsArr = accountList.toArray()
+      if(accountsArr.length == 0){
+        console.log('No accounts found')
+      }
+      else if(accountsArr.length > 1){
+        console.log('multiple accounts detected')
+      }else{
+        //now for each secret file in the 'subscribedTo' field, create a new element for the attachment and add it to elementsList, then when done create the attachment and send to user using 'reply' object
+        accountsArr.forEach(function(subscribedToString){
+          var secretfilesArr = subscribedToString.trim().split(VALUESEPARATOR)
+          console.log(userid+' subscribed to '+secretfilesArr.length+' secret files')
+          var matchingSecretFileList = new List()
+
+          for(var c = 0;c < secretfilesArr.length -1;c++){
+            var secretfilename = secretfilesArr[c]
+            try{
+                  console.log('fetching groupitem data of '+ secretfilename)
+                  var secretFileRequest = new Request('SELECT * FROM GROUPITEM WHERE groupName=@secretfilename',
+                  function(err){
+                    if (err) {  
+                      console.log(err);
+                    } 
+
+                    //ask user which secret file to read from
+                    matchingSecretFileList.forEach(function(columns){
+                      console.log('adding an element to elementsList from matchingSecretFileList')
+                      elementsList.add(createElementForPayloadForAttachmentForMessage(
+                        columns[5].value,
+                        columns[6].value,
+                        '',
+                        '',
+                        [
+                          createButton("postback", postbackReadFromThisSecretFileString, 
+                            postbackReadFromThisSecretFileString+VALUESEPARATOR+columns[5].value)
+                        ]
+                      ))
+                    })
+                    
+                  })
+                  secretFileRequest.addParameter('secretfilename', TYPES.NVarChar, secretfilename) 
+                  secretFileRequest.on('row', function(columns){
+                    matchingSecretFileList.add(columns)
+                    console.log('adding a secret file to its matching list')
+                  })
+                  secretFileRequest.on('doneProc', function(rowcount, more){
+                    try{
+                      var elements = elementsList.toArray()
+                      console.log('done adding to elementsList: '+elements.length)
+                      ShowAttachmentToUser('Which Secret File do you want to read?', elements, reply)//too little elements error
+                    }catch(err){
+                      console.log('secretFileRequest doneProc event error: '+err.message)
+                    }
+                  })
+                  connection.execSql(secretFileRequest)
+            }catch(err){
+              console.log('error in ShowSubscribedPosts: '+err.message)
+            }
+          }
+
+          secretfilesArr.forEach(function(secretfilename){
+          })
+
+          
+        })
+      }
+
+
+    }
+  )
+  selectRequest.addParameter('userid', TYPES.NVarChar, userid)
+  selectRequest.on('row', function(columns){
+    accountList.add(columns[0].value)
+    console.log('added new row in selectRequest for accountsList')
+  })
+  connection.execSql(selectRequest)
+
+  //FetchPostsInSecretFile(secretfilename)
+}
+
+function ShowAttachmentToUser(message, elements, reply){
+  reply(
+  {
+    text: message
+  }, (err) => {
+    if (err) {
+      console.log(err.message)
+      throw err
+    }
+  })
+  reply(
+  {
+    attachment: createTemplateAttachmentForMessage(elements)
+  }, (err) => {
+    if (err) {
       console.log(err.message)
       throw err
     }
@@ -773,7 +1215,7 @@ function createButton(type, title, postbackPayloadTypeString){
   return button 
 }
 
-function extractSecretFileNameFromPayload(payload){
+/*function extractDataFromPayload(payload){
   var arr = payload.split('-')
   for(c = 0;c < arr.length;c++){
     if(arr[c] == 'DLSU'){//fetch dynamic value from db
@@ -781,7 +1223,7 @@ function extractSecretFileNameFromPayload(payload){
     }
   }
   return ''
-}
+}*/
 
 function isButtonOfPayload(buttonTitle){
   return payloadTitle.includes(buttonTitle)
@@ -868,7 +1310,7 @@ function ShowSecretFilesSubscriptions(senderid, reply, postbackPayloadTypeString
             reply({ 
                 text: 'There are no Secret Files yet! ',
                 quick_replies: [
-                  createQuickTextReply('Create', CreateNewSecretFileString)
+                  createQuickTextReply(CreateNewSecretFileString, CreateNewSecretFileString)
                 ]
             }, (err) => {
               if (err) {
