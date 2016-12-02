@@ -272,7 +272,7 @@ var useStaticIP = true
 //http://stackoverflow.com/questions/20581920/static-ip-address-with-heroku-not-proximo
 //https://devcenter.heroku.com/articles/quotaguardstatic#socks-proxy-setup
 if(useStaticIP == true){
-  var QUOTAGUARDSTATIC_URL='http://quotaguard7549:813f015538d1@us-east-static-02.quotaguard.com:9293'
+  var QUOTAGUARDSTATIC_URL='http://quotaguard7549:813f015538d1@us-east-static-02.quotaguard.com:1433'//9293'
   var mysql = require('mysql2');
   var url = require("url");
   var SocksConnection = require('socksjs');
