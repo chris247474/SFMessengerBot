@@ -372,7 +372,8 @@ function IsDoneReadingAllPostsInSecretFile(secretFileName){
   return false
 }
 
-function FetchPostsInSecretFile(secretFileName){
+function FetchPostsInSecretFile(secretFileName, reply){
+  console.log('fetching posts for '+secretFileName)
   var postsList = new List()
   if(IsDoneReadingAllPostsInSecretFile(secretFileName)){
     reply({text: 'That\s all the posts in '+secretFileName+' for now. I\'ll notify you when another is posted!'/*,
@@ -394,17 +395,26 @@ function FetchPostsInSecretFile(secretFileName){
         console.log(err);
       } 
 
-      //when query is done executing
-      ShowPostsToUser([ postsList[postCounter] ])
-      if(postCounter < postsList.toArray().length){
-        postCounter++
-      }else{
-        postCounter = 0
-        allPostsRead = true
-      }
+      
     })
     getPostsRequest.addParameter('groupname', TYPES.NVarChar, secretFileName)
-
+    getPostsRequest.on('requestCompleted', function(){
+      //when query is done executing
+      console.log('about to show a post for reading, postCounter is '+postCounter)
+      var postsArr = postsList.toArray()
+      console.log('fetched '+postsArr.length+' posts')
+      if(postsArr.length > 0){
+        ShowPostsToUser([ postsArr[postCounter] ], reply)
+        if(postCounter < postsArr.length){
+          postCounter++
+        }else{
+          postCounter = 0
+          allPostsRead = true
+        }
+      }else{
+        console.log('no posts found')
+      }
+    })
     getPostsRequest.on('row', function(columns){
       postsList.add(columns)
     })
@@ -637,7 +647,7 @@ bot.on('message', (callbackObject, reply) => {
     }
     else if(handleMessages(callbackObject.message.text, callbackObject, reply)){}//handles manually typed commands
     else{
-      messageUserTypicalCommands(callbackObject, reply)//handles text otherwise not understood by bot
+      messageUserTypicalCommands(reply)//handles text otherwise not understood by bot
     }
   }else {
     SendMessageToWitAI(callbackObject.sender.id, callbackObject.message.text)
@@ -671,9 +681,9 @@ bot.on('postback', (postbackContainer, reply, actions) => {
     ReplyUnderConstruction(reply)
   }else if(_payload.includes(postbackReadMorePostsString)){
     //load another post
-    FetchPostsInSecretFile(extractDataFromPayload(_payload, 2))
+    FetchPostsInSecretFile(extractDataFromPayload(_payload, 2), reply)
   }else if(_payload.includes(postbackReadFromThisSecretFileString)){
-    FetchPostsInSecretFile(extractDataFromPayload(_payload, 1))
+    FetchPostsInSecretFile(extractDataFromPayload(_payload, 1), reply)
   }
 
   //actions from hamburger icon on left of message field
@@ -683,30 +693,68 @@ bot.on('postback', (postbackContainer, reply, actions) => {
 ///////////////////////////////
 
 /////////////////////////////// Helper functions
-function ShowPostsToUser(postList){
+function ShowPostsToUser(postList, reply){
   var elementsList = new List()
   postList.forEach(function(columns){
-    elementsList.add(
-      createElementForPayloadForAttachmentForMessage(
-        columns[9].value,
-        columns[10].value,
-        '', '',
-        //"https://4.bp.blogspot.com", 
-        //"https://4.bp.blogspot.com/-BB8-tshB9fk/WA9IvvztmfI/AAAAAAAAcHU/hwMnPbAM4lUx8FtCTiSp7IpIes-S0RkLgCLcB/s640/dlsu-campus.jpg", 
-        [
-          createButton("postback", 'Comment', 
-            postbackCommentOnPostString+VALUESEPARATOR+columns[0].value+VALUESEPARATOR+columns[7].value),
-          createButton("postback", 'Read More', 
-            postbackReadMorePostsString+VALUESEPARATOR+columns[0].value+VALUESEPARATOR+columns[7].value)
-        ]
+    if(columns){
+      elementsList.add(
+        createElementForPayloadForAttachmentForMessage(
+          columns[10].value,
+          columns[9].value,
+          '', '',
+          //"https://4.bp.blogspot.com", 
+          //"https://4.bp.blogspot.com/-BB8-tshB9fk/WA9IvvztmfI/AAAAAAAAcHU/hwMnPbAM4lUx8FtCTiSp7IpIes-S0RkLgCLcB/s640/dlsu-campus.jpg", 
+          [
+            createButton("postback", 'Comment', 
+              postbackCommentOnPostString+VALUESEPARATOR+columns[0].value+VALUESEPARATOR+columns[7].value),
+            createButton("postback", 'Read More', 
+              postbackReadMorePostsString+VALUESEPARATOR+columns[0].value+VALUESEPARATOR+columns[7].value)
+          ]
+        )
       )
-    )
+    }else{
+      ReplyWithQuickReply('No more posts left to read', createMessageOptions(), reply)
+    }
   })
 
-  ShowAttachmentToUser(elementsList.toArray())
+  ShowAttachmentToUser(null, elementsList.toArray(), reply)
 }
-
-function ShowAttachmentToUser(elements){
+function ReplyWithText(message, reply){
+  if(message === null){
+  }else{
+    reply({text:message}, (err, info)=>{
+      if(err){
+        console.log(err)
+        throw err
+      }
+    })
+  }
+}
+function ReplyWithQuickReply(message, quickreplies, reply){
+  if(message && quickreplies && quickreplies.length > 0){
+    console.log('about to send quick replies')
+    reply({
+      text: message, 
+      quick_replies: quickreplies}, (err, info)=>{
+      if(err){
+        console.log(err)
+        throw err
+      }
+    })
+  }
+}
+function ReplyWithAttachment(attachmentObject, reply){
+  if(attachmentObject === null){
+  }else{
+    reply({attachment:attachmentObject}, (err, info)=>{
+      if(err){
+        console.log(err)
+        throw err
+      }
+    })
+  }
+}
+/*function ShowAttachmentToUser(elements){
   reply({ 
       attachment:createTemplateAttachmentForMessage(elements)
   }, (err) => {
@@ -717,7 +765,7 @@ function ShowAttachmentToUser(elements){
 
     console.log(`Showing attachment to user `+ senderid)
   })
-}
+}*/
 
 //data is at index 1 and onwards. index 0 contains the postback type string
 function extractDataFromPayload(payload, columnNum){
@@ -731,6 +779,7 @@ function isNullOrWhitespace(input) {
 
     return input.replace(/ /g, '').length < 1;
 }
+
 function removeSpaces(input){
   return input.replace(/ /g, '')
 }
@@ -871,7 +920,7 @@ function handlePersistentMenuActions(_payload, senderid, reply){
   console.log('In handlePersistentMenuActions')
   //check if payload was sent by a persistent menu item
   if(_payload == HelpPersistentMenuItem){
-    messageUserTypicalCommands(_payload, reply)
+    messageUserTypicalCommands(reply)
   }
   else if(_payload == PostNew){
     //PostNewinSecretFile(reply)
@@ -1017,13 +1066,14 @@ function ShowAllSubscribedPosts(payload, reply, userid){
                     if (err) {  
                       console.log(err);
                     } 
-
-                    //ask user which secret file to read from
-                    matchingSecretFileList.forEach(function(columns){
-                      console.log('adding an element to elementsList from matchingSecretFileList')
+                  })
+                  secretFileRequest.addParameter('secretfilename', TYPES.NVarChar, secretfilename) 
+                  secretFileRequest.on('row', function(columns){
+                    console.log('new row fetched from secretFileRequests')
+                    console.log('adding an element to elementsList from matchingSecretFileList')
                       elementsList.add(createElementForPayloadForAttachmentForMessage(
-                        columns[5].value,
-                        columns[6].value,
+                        (columns[5]).value,
+                        (columns[6]).value,
                         '',
                         '',
                         [
@@ -1031,23 +1081,25 @@ function ShowAllSubscribedPosts(payload, reply, userid){
                             postbackReadFromThisSecretFileString+VALUESEPARATOR+columns[5].value)
                         ]
                       ))
-                    })
-                    
                   })
-                  secretFileRequest.addParameter('secretfilename', TYPES.NVarChar, secretfilename) 
-                  secretFileRequest.on('row', function(columns){
-                    matchingSecretFileList.add(columns)
-                    console.log('adding a secret file to its matching list')
-                  })
-                  secretFileRequest.on('doneProc', function(rowcount, more){
-                    try{
+                  secretFileRequest.on('requestCompleted', function () {
+                      console.log('secretFileRequest.requestCompleted event fired')
+                      //ask user which secret file to read from
                       var elements = elementsList.toArray()
                       console.log('done adding to elementsList: '+elements.length)
-                      ShowAttachmentToUser('Which Secret File do you want to read?', elements, reply)//too little elements error
-                    }catch(err){
-                      console.log('secretFileRequest doneProc event error: '+err.message)
-                    }
-                  })
+                      if(elements.length > 0) {
+                        ShowAttachmentToUser('Which Secret File do you want to read?', elements, reply)
+                      }else {
+                        reply(
+                          { text: 'You\'re not subscribed to any Secret Files yet' }, (err, info) => {
+                            if(err){
+                              console.log(err.message)
+                              throw err
+                            }
+                        })
+                        ShowSecretFilesSubscriptions(userid, reply, SubscribeStringPostback)
+                      }
+                  });
                   connection.execSql(secretFileRequest)
             }catch(err){
               console.log('error in ShowSubscribedPosts: '+err.message)
@@ -1075,24 +1127,14 @@ function ShowAllSubscribedPosts(payload, reply, userid){
 }
 
 function ShowAttachmentToUser(message, elements, reply){
-  reply(
-  {
-    text: message
-  }, (err) => {
-    if (err) {
-      console.log(err.message)
-      throw err
-    }
-  })
-  reply(
-  {
-    attachment: createTemplateAttachmentForMessage(elements)
-  }, (err) => {
-    if (err) {
-      console.log(err.message)
-      throw err
-    }
-  })
+  console.log('ShowAttachmentToUser checking if params are not null')
+  console.log('length: '+elements.length)
+  if(elements && elements.length > 0){
+    if(message) ReplyWithText(message, reply)
+    ReplyWithAttachment(createTemplateAttachmentForMessage(elements), reply)
+  }else{
+    console.log('array has no elements')
+  }
 }
 
 function PostNewinSecretFile(reply, senderid){
@@ -1181,20 +1223,14 @@ function createQuickTextReply(_title, _payload){
   }
 }
 
-function messageUserTypicalCommands(payload, reply){
- // bot.getProfile(payload.sender.id, (err, profile) => {
-        let message = "Here's what you can do with Secret Files"
-        //if (err) throw err
-
-        reply({ 
-          text: message,
-          quick_replies: createMessageOptions()
-        }, (err) => {//first argument should be 'text' or 'attachment' objects in payload.message
-          if (err) throw err
-
-          //console.log(`Echoed back to ${profile.first_name} ${profile.last_name}: ${text}`)
-        })
-      //})
+function messageUserTypicalCommands(reply){
+    let message = "Here's what you can do with Secret Files"
+    reply({ 
+      text: message,
+      quick_replies: createMessageOptions()
+    }, (err) => {//first argument should be 'text' or 'attachment' objects in payload.message
+      if (err) throw err
+    })
 }
 
 function createMessageOptions(){
