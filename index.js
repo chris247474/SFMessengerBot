@@ -266,7 +266,7 @@ function SendMessageToWitAI(senderid, messageToProcess){
 var VALUESEPARATOR = ';'
 
 var pendingPostText = ''
-var useStaticIP = false
+var useStaticIP = true
 
 //setup db connection using SOCKSJS for static IP in heroku server
 //http://stackoverflow.com/questions/20581920/static-ip-address-with-heroku-not-proximo
