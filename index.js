@@ -278,7 +278,7 @@ if(useStaticIP == true){
   var url = require("url");
   var SocksConnection = require('socksjs');
   var remote_options = {
-    host:'chrisdavetv.database.windows.net',
+    host:'tcp:chrisdavetv.database.windows.net:1433',//'chrisdavetv.database.windows.net',//tcp://chrisdavetv.database.windows.net:1433,
     port: 3306
   };
   var proxy = url.parse(process.env.QUOTAGUARDSTATIC_URL || QUOTAGUARDSTATIC_URL);
@@ -299,7 +299,7 @@ if(useStaticIP == true){
     password: 'Chrisujt5287324747@@',
     stream: sockConn
   });
-  dbConnection.getConnection()/*query('SELECT 1+1 as test1', function(err, rows, fields) {
+  dbConnection.query('SELECT * FROM GROUPITEM', function(err, rows, fields) {
     if (err) {
       console.log('dbConnection error: '+err.message)
       throw err;
@@ -307,7 +307,7 @@ if(useStaticIP == true){
 
     console.log('SocksJS Connected - Result: ', rows);
     sockConn.dispose();
-  });*/
+  });
   console.log('called dbConnection.getConnection()')
   dbConnection.end();
 }
