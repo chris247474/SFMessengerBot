@@ -1071,7 +1071,7 @@ function ShowAllSubscribedPosts(payload, reply, userid){
                       console.log(err);
                     }
 
-                    console.log('secretFileRequest done executing query')
+                    /*console.log('secretFileRequest done executing query')
                       //ask user which secret file to read from
                       var elements = elementsList.toArray()
                       console.log('done adding to elementsList: '+elements.length)
@@ -1086,7 +1086,7 @@ function ShowAllSubscribedPosts(payload, reply, userid){
                             }
                         })
                         ShowSecretFilesSubscriptions(userid, reply, SubscribeStringPostback)
-                      } 
+                      } */
                   })
                   secretFileRequest.addParameter('secretfilename', TYPES.NVarChar, secretfilename) 
                   secretFileRequest.on('row', function(columns){
