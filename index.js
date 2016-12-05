@@ -278,7 +278,7 @@ if(useStaticIP == true){
   var url = require("url");
   var SocksConnection = require('socksjs');
   var remote_options = {
-    host:'tcp://chrisdavetv.database.windows.net:1433',//'chrisdavetv.database.windows.net',
+    host: 'chrisdavetv.database.windows.net',
     port: 3306
   };
   var proxy = url.parse(process.env.QUOTAGUARDSTATIC_URL || QUOTAGUARDSTATIC_URL);
