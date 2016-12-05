@@ -299,15 +299,16 @@ if(useStaticIP == true){
     password: 'Chrisujt5287324747@@',
     stream: sockConn
   });
-  dbConnection.query('SELECT 1+1 as test1;', function(err, rows, fields) {
+  dbConnection.getConnection()/*query('SELECT 1+1 as test1', function(err, rows, fields) {
     if (err) {
       console.log('dbConnection error: '+err.message)
       throw err;
     }
 
-    console.log('Using SocksJS - Result: ', rows);
+    console.log('SocksJS Connected - Result: ', rows);
     sockConn.dispose();
-  });
+  });*/
+  console.log('called dbConnection.getConnection()')
   dbConnection.end();
 }
 
