@@ -267,7 +267,7 @@ function SendMessageToWitAI(senderid, messageToProcess){
 var VALUESEPARATOR = ';'
 
 var pendingPostText = ''
-var useStaticIP = true
+var useStaticIP = false
 
 //setup db connection using SOCKSJS for static IP in heroku server
 //http://stackoverflow.com/questions/20581920/static-ip-address-with-heroku-not-proximo
@@ -278,7 +278,7 @@ if(useStaticIP == true){
   var url = require("url");
   var SocksConnection = require('socksjs');
   var remote_options = {
-    host: 'chrisdavetv.database.windows.net',
+    host: '127.0.0.1',//'chrisdavetv.database.windows.net',
     port: 3306
   };
   var proxy = url.parse(process.env.QUOTAGUARDSTATIC_URL || QUOTAGUARDSTATIC_URL);
@@ -317,7 +317,7 @@ if(useStaticIP == false){
   var config = {  
       userName: 'chrisdavetv@chrisdavetv',  
       password: 'Chrisujt5287324747@@',  
-      server: 'chrisdavetv.database.windows.net',  
+      server: '127.0.0.1',//'chrisdavetv.database.windows.net',  
       options: {
         encrypt: true, 
         database: 'chrisdavetvapps',
