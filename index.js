@@ -330,7 +330,7 @@ if(useStaticIP == false){
   var connection = new Connection(config);  
   connection.on('connect', function(err) {  
     // If no error, then good to proceed.  
-    if(err) console.log('debug:', err)
+    if(err) console.log('Failed to connect to Azure SQL Server:', err.message)
     else console.log("Connected to Azure SQL Server "+config.server+', DB '+config.options.database);  
     //executeStatement("SELECT * FROM AccountItem");  
   }); 
@@ -1331,7 +1331,7 @@ function ShowSecretFilesSubscriptions(senderid, reply, postbackPayloadTypeString
             }
         });  
 
-        queryRequest.on('doneProc', function(rowCount, more) { 
+        queryRequest.on('requestCompleted', function() { 
           console.log(rowList.toArray().length + ' rows returned');  
           rowList.forEach(function(columns){
             elementsList.add(createElementForPayloadForAttachmentForMessage(
