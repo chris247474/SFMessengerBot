@@ -278,7 +278,7 @@ if(useStaticIP == true){
   var url = require("url");
   var SocksConnection = require('socksjs');
   var remote_options = {
-    host:'tcp:chrisdavetv.database.windows.net:1433',//'chrisdavetv.database.windows.net',//tcp://chrisdavetv.database.windows.net:1433,
+    host:'tcp://chrisdavetv.database.windows.net:1433',//'chrisdavetv.database.windows.net',
     port: 3306
   };
   var proxy = url.parse(process.env.QUOTAGUARDSTATIC_URL || QUOTAGUARDSTATIC_URL);
@@ -308,7 +308,6 @@ if(useStaticIP == true){
     console.log('SocksJS Connected - Result: ', rows);
     sockConn.dispose();
   });
-  console.log('called dbConnection.getConnection()')
   dbConnection.end();
 }
 
