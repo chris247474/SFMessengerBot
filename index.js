@@ -318,7 +318,7 @@ if(useStaticIP == false){
   var config = {  
       userName: 'chrisdavetv@chrisdavetv',  
       password: 'Chrisujt5287324747@@',  
-      server: '127.0.0.1',//'chrisdavetv.database.windows.net',  
+      server: '127.0.0.1',
       options: {
         encrypt: true, 
         database: 'chrisdavetvapps',
@@ -332,7 +332,6 @@ if(useStaticIP == false){
     // If no error, then good to proceed.  
     if(err) console.log('Failed to connect to Azure SQL Server:', err.message)
     else console.log("Connected to Azure SQL Server "+config.server+', DB '+config.options.database);  
-    //executeStatement("SELECT * FROM AccountItem");  
   }); 
 } 
 
@@ -1070,7 +1069,24 @@ function ShowAllSubscribedPosts(payload, reply, userid){
                   function(err){
                     if (err) {  
                       console.log(err);
-                    } 
+                    }
+
+                    console.log('secretFileRequest done executing query')
+                      //ask user which secret file to read from
+                      var elements = elementsList.toArray()
+                      console.log('done adding to elementsList: '+elements.length)
+                      if(elements.length > 0) {
+                        ShowAttachmentToUser('Which Secret File do you want to read?', elements, reply)
+                      }else {
+                        reply(
+                          { text: 'You\'re not subscribed to any Secret Files yet' }, (err, info) => {
+                            if(err){
+                              console.log(err.message)
+                              throw err
+                            }
+                        })
+                        ShowSecretFilesSubscriptions(userid, reply, SubscribeStringPostback)
+                      } 
                   })
                   secretFileRequest.addParameter('secretfilename', TYPES.NVarChar, secretfilename) 
                   secretFileRequest.on('row', function(columns){
