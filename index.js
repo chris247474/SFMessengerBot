@@ -113,6 +113,7 @@ const firstEntityValue = (entities, entity) => {
     return typeof val === 'object' ? val.value : val;
   }catch(err){
     console.log('wit.ai most likely didn\'t understand a message')
+    //ReplyWithText('Sorry I didn\'t catch that. Please try again', reply)
   }
   return null
 };
@@ -1034,7 +1035,7 @@ function addPersistentMenu(){
 }
 
 function ShowAllSubscribedPosts(payload, reply, userid){
-  console.log('In ShowAllSubscribedPosts')
+  console.log('In ShowAllSubscribedPosts, userid: '+userid)
   var secretfilename = ''
   var elementsList = new List()
 
