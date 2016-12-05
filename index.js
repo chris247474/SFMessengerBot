@@ -1103,6 +1103,7 @@ function ShowAllSubscribedPosts(payload, reply, userid){
                         ]
                       ))
                   })
+                  //for some reason this causes Request Error exception on heroku with QuotaGuardStatic, moved code to function param
                   /*secretFileRequest.on('requestCompleted', function () {
                       console.log('secretFileRequest.requestCompleted event fired')
                       //ask user which secret file to read from
