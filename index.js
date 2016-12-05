@@ -33,7 +33,8 @@ var postCounter = 0
 var allPostsRead = false
 
 //microsoft azure secret files application
-var azureDBConnStr = "Driver={ODBC Driver 13 for SQL Server};Server=tcp:chrisdavetv.database.windows.net,1433;Database=chrisdavetvapps;Uid=chrisdavetv@chrisdavetv;Pwd={Chrisujt5287324747@@};Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
+var azureDBConnStr = 
+"Driver={ODBC Driver 13 for SQL Server};Server=tcp:chrisdavetv.database.windows.net,1433;Database=chrisdavetvapps;Uid=chrisdavetv@chrisdavetv;Pwd={Chrisujt5287324747@@};Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
 
 //postback and message events string ids
 var GETSTARTEDSTRING = "Get Started"
@@ -272,7 +273,7 @@ var useStaticIP = true
 //http://stackoverflow.com/questions/20581920/static-ip-address-with-heroku-not-proximo
 //https://devcenter.heroku.com/articles/quotaguardstatic#socks-proxy-setup
 if(useStaticIP == true){
-  var QUOTAGUARDSTATIC_URL='http://quotaguard7549:813f015538d1@us-east-static-02.quotaguard.com:1433'//9293'
+  var QUOTAGUARDSTATIC_URL='http://quotaguard7549:813f015538d1@us-east-static-02.quotaguard.com:9293'
   var mysql = require('mysql2');
   var url = require("url");
   var SocksConnection = require('socksjs');
@@ -295,11 +296,14 @@ if(useStaticIP == true){
   var dbConnection = mysql.createConnection({
     user: 'chrisdavetv@chrisdavetv',
     database: 'chrisdavetvapps',
-    password: 'Chrisujt5287324747',
+    password: 'Chrisujt5287324747@@',
     stream: sockConn
   });
   dbConnection.query('SELECT 1+1 as test1;', function(err, rows, fields) {
-    if (err) throw err;
+    if (err) {
+      console.log('dbConnection error: '+err.message)
+      throw err;
+    }
 
     console.log('Using SocksJS - Result: ', rows);
     sockConn.dispose();
