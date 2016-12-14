@@ -13,7 +13,8 @@ var List = require("collections/list");
 
 //to access SQL Server on azure
 var tedious = require('tedious')
-var Connection = tedious.Connection;
+//var Connection = tedious.Connection;
+var ConnectionPool = require('tedious-connection-pool');
 var Request = tedious.Request;  
 var TYPES = tedious.TYPES; 
 
@@ -268,72 +269,47 @@ function SendMessageToWitAI(senderid, messageToProcess){
 var VALUESEPARATOR = ';'
 
 var pendingPostText = ''
-var useStaticIP = false
+var localTestMode = false
+var serverString = ''
 
-//setup db connection using SOCKSJS for static IP in heroku server
-//http://stackoverflow.com/questions/20581920/static-ip-address-with-heroku-not-proximo
-//https://devcenter.heroku.com/articles/quotaguardstatic#socks-proxy-setup
-if(useStaticIP == true){
-  var QUOTAGUARDSTATIC_URL='http://quotaguard7549:813f015538d1@us-east-static-02.quotaguard.com:9293'
-  var mysql = require('mysql2');
-  var url = require("url");
-  var SocksConnection = require('socksjs');
-  var remote_options = {
-    host: '127.0.0.1',//'chrisdavetv.database.windows.net',
-    port: 3306
-  };
-  var proxy = url.parse(process.env.QUOTAGUARDSTATIC_URL || QUOTAGUARDSTATIC_URL);
-  var auth = proxy.auth;
-  var username = auth.split(":")[0]
-  var pass = auth.split(":")[1]
-
-  var sock_options = {
-    host: proxy.hostname,
-    port: 1080,
-    user: username,
-    pass: pass
-  }
-  var sockConn = new SocksConnection(remote_options, sock_options)
-  var dbConnection = mysql.createConnection({
-    user: 'chrisdavetv@chrisdavetv',
-    database: 'chrisdavetvapps',
-    password: 'Chrisujt5287324747@@',
-    stream: sockConn
-  });
-  dbConnection.query('SELECT * FROM GROUPITEM', function(err, rows, fields) {
-    if (err) {
-      console.log('dbConnection error: '+err.message)
-      throw err;
-    }
-
-    console.log('SocksJS Connected - Result: ', rows);
-    sockConn.dispose();
-  });
-  dbConnection.end();
+if(localTestMode == true){
+  serverString = 'chrisdavetv.database.windows.net'
+}else{
+  serverString = '127.0.0.1'
 }
-
  
 // When you connect to Azure SQL Server, you need these next options.  
-if(useStaticIP == false){
-  var config = {  
-      userName: 'chrisdavetv@chrisdavetv',  
-      password: 'Chrisujt5287324747@@',  
-      server: '127.0.0.1',
-      options: {
-        encrypt: true, 
-        database: 'chrisdavetvapps',
-        rowCollectionOnRequestCompletion: true,
-        rowCollectionOnDone: true
-      }  
-  }; 
-  //connection will be refused by Azure SQL Server unless you add a firewall exception for this IP address
-  var connection = new Connection(config);  
-  connection.on('connect', function(err) {  
-    // If no error, then good to proceed.  
-    if(err) console.log('Failed to connect to Azure SQL Server:', err.message)
-    else console.log("Connected to Azure SQL Server "+config.server+', DB '+config.options.database);  
-  }); 
-} 
+var connectionConfig = {  
+    userName: 'chrisdavetv@chrisdavetv',  
+    password: 'Chrisujt5287324747@@',  
+    server: serverString,//'127.0.0.1',
+    options: {
+      encrypt: true, 
+      database: 'chrisdavetvapps',
+      rowCollectionOnRequestCompletion: true,
+      rowCollectionOnDone: true
+    }  
+}; 
+var poolConfig = {
+  min: 2,
+  max: 4,
+  log: true
+};
+//create the pool
+var pool = new ConnectionPool(poolConfig, connectionConfig);
+pool.on('error', function(err){
+  if(err) console.log('Failed to connect to Azure SQL Server:', err.message)
+  else console.log("Connected to Azure SQL Server "+connectionConfig.server+', DB '+connectionConfig.options.database);  
+})
+
+
+//connection will be refused by Azure SQL Server unless you add a firewall exception for this IP address
+/*var connection = new Connection(connectionConfig);  
+connection.on('connect', function(err) {  
+  // If no error, then good to proceed.  
+  if(err) console.log('Failed to connect to Azure SQL Server:', err.message)
+  else console.log("Connected to Azure SQL Server "+connectionConfig.server+', DB '+connectionConfig.options.database);  
+}); */
 
 ///////////////////////////////// SQL helper functions
 
@@ -341,7 +317,12 @@ function Login(userid){
     console.log('CreateAccountRecordOrLogin: logging in')
     var rowList = new List()
 
-    if(useStaticIP == false){
+    pool.acquire(function(err, connection){
+        if (err) {
+            console.error(err);
+            return;
+        }
+
       //check if user already logged in before
       try{
         var selectRequest = new Request("SELECT * FROM ACCOUNTITEM WHERE username = @username", function(err){
@@ -355,6 +336,9 @@ function Login(userid){
           }else{
             CreateAccountRecord(userid)
           }
+
+          //release the connection back to the pool when finished
+          connection.release();
         })
         selectRequest.addParameter('username', TYPES.NVarChar, userid)
 
@@ -366,11 +350,14 @@ function Login(userid){
       }catch(err){
         console.log('Login error: '+err.message)
       }
-    }
+    })
 }
 
 function IsDoneReadingAllPostsInSecretFile(secretFileName){
   if(postCounter == 0 && allPostsRead == true){
+    //reset flags
+    //postCounter = 0
+    allPostsRead = false
     return true
   }
   return false
@@ -379,32 +366,27 @@ function IsDoneReadingAllPostsInSecretFile(secretFileName){
 function FetchPostsInSecretFile(secretFileName, reply){
   console.log('fetching posts for '+secretFileName)
   var postsList = new List()
-  if(IsDoneReadingAllPostsInSecretFile(secretFileName)){
-    reply({text: 'That\s all the posts in '+secretFileName+' for now. I\'ll notify you when another is posted!'/*,
-            quick_replies: [
 
-            ]*/
-          },
-      (err, info) => {
-        if(err){
-          console.log(err.message)
-          throw err
-        }
-    })
-  }else{
+  pool.acquire(function(err, connection){
+    if (err) {
+      console.error(err);
+      return;
+    }
+
     var getPostsRequest = new Request(
-      'SELECT * FROM POSTITEM WHERE groupID=@groupname ORDER BY createdAt DESC', 
-      function(err){
+    'SELECT * FROM POSTITEM WHERE groupID=@groupname ORDER BY createdAt DESC', 
+    function(err){
       if (err) {  
         console.log(err);
       } 
-
-      
     })
     getPostsRequest.addParameter('groupname', TYPES.NVarChar, secretFileName)
     getPostsRequest.on('requestCompleted', function(){
       //when query is done executing
-      console.log('about to show a post for reading, postCounter is '+postCounter)
+
+      ShowPostsToUser(postsList, reply)
+
+      /*console.log('about to show a post for reading, postCounter is '+postCounter)
       var postsArr = postsList.toArray()
       console.log('fetched '+postsArr.length+' posts')
       if(postsArr.length > 0){
@@ -417,25 +399,44 @@ function FetchPostsInSecretFile(secretFileName, reply){
         }
       }else{
         console.log('no posts found')
-      }
+      }*/
+
+      //release the connection back to the pool when finished
+      connection.release();
     })
     getPostsRequest.on('row', function(columns){
       postsList.add(columns)
     })
 
     connection.execSql(getPostsRequest)
-    }
+  })
+
+  /*if(IsDoneReadingAllPostsInSecretFile(secretFileName)){
+    reply({text: 'That\s all the posts in '+secretFileName+' for now. I\'ll notify you when another is posted!'
+          },
+      (err, info) => {
+        if(err){
+          console.log(err.message)
+          throw err
+        }
+    })
+  }else{
+      
+  }*/
 }
 
 function CreateAccountRecord(userid){
-  if(useStaticIP == false){
+  pool.acquire(function(err, connection){
       try{
         var insertRequest = new Request(
           'INSERT INTO ACCOUNTITEM (username, password) VALUES (@user, @pass)', 
         function(err) {  
           if (err) {  
-              console.log(err);
-            }  
+            console.log(err);
+          }  
+
+          //release the connection back to the pool when finished
+          connection.release();
         });  
 
         insertRequest.on('doneProc', function(rowCount, more){
@@ -450,7 +451,7 @@ function CreateAccountRecord(userid){
       } catch(err){
         console.log("CreateAccountRecord error: "+err.message)
       }
-  }
+  })
 }
 
 //#DLSUSecretFiles1234 - number should be counter field in db
@@ -459,7 +460,12 @@ function SubscribeToSecretFile(reply, secretfile, userid){
   console.log('subscribing to secretfile: '+secretfile)
   var userSubscriptionList = ''//get value of current user subscriptions
 
-  if(useStaticIP == false){
+  pool.acquire(function(err, connection){
+    if (err) {
+        console.error(err);
+        return;
+    }
+
     var accountRowList = new List()
     var selectRequest = new Request("SELECT * FROM ACCOUNTITEM WHERE username=@userid", function(err){//update GroupItem subscribers field too
       if (err) {  
@@ -468,49 +474,56 @@ function SubscribeToSecretFile(reply, secretfile, userid){
 
       var arr = accountRowList.toArray()
       if(arr.length > 0){
-        userSubscriptionList = (arr[0])[6].value
-        userSubscriptionList += secretfile+VALUESEPARATOR
+        pool.acquire(function(err, connection){
+            userSubscriptionList = (arr[0])[7].value
+            userSubscriptionList += secretfile+VALUESEPARATOR
 
-        //go ahead and update value
-        var rowList = new List()
-        var updateRequest = new Request("UPDATE ACCOUNTITEM SET subscribedTo=@subscriptions WHERE username=@userid", function(err) {  
-          if (err) {  
-            console.log(err);
-          }  
+            //go ahead and update value
+            var rowList = new List()
+            var updateRequest = new Request("UPDATE ACCOUNTITEM SET subscribedTo=@subscriptions WHERE username=@userid", function(err) {  
+              if (err) {  
+                console.log(err);
+              }  
 
-          //if subscribed succesfully
-          var responseMessage = 'Whenever someone posts on '+secretfile+
-            ', it will appear here from now on! Here\'s what we can do next:'
-          reply(
-            {
-              text: responseMessage, 
-              quick_replies: [
-                createQuickTextReply(PostNew, PostNew),
-                createQuickTextReply(ShowPostsString, ShowPostsString)
-              ]
-            }, (err, info) => {
-                if(err) {
-                  console.log(err.message)
-                  throw err
-                }
-          })
+              //if subscribed succesfully
+              var responseMessage = 'Whenever someone posts on '+secretfile+
+                ', it will appear here from now on! Here\'s what we can do next:'
+              reply(
+                {
+                  text: responseMessage, 
+                  quick_replies: [
+                    createQuickTextReply(PostNew, PostNew),
+                    createQuickTextReply(ShowPostsString, ShowPostsString)
+                  ]
+                }, (err, info) => {
+                    if(err) {
+                      console.log(err.message)
+                      throw err
+                    }
+              })
 
-          //update GroupItem table too //consider executing on one statement
-        });  
+              //update GroupItem table too //consider executing on one statement
 
-        updateRequest.addParameter('userid', TYPES.NVarChar, userid)
-        updateRequest.addParameter('subscriptions', TYPES.NVarChar, userSubscriptionList)
+              //release the connection back to the pool when finished
+              connection.release();
+            });  
 
-        updateRequest.on('row', function(columns) {
-            rowList.add(columns)
-        });
+            updateRequest.addParameter('userid', TYPES.NVarChar, userid)
+            updateRequest.addParameter('subscriptions', TYPES.NVarChar, userSubscriptionList)
 
-        connection.execSql(updateRequest)
+            updateRequest.on('row', function(columns) {
+                rowList.add(columns)
+            });
+
+            connection.execSql(updateRequest)
+            
+        })
       }else{
         console.log('SubscribeToSecretFile: no account found. creating one then subscribing again')
       }
 
-      
+      //release the connection back to the pool when finished
+      connection.release();
     })
 
     selectRequest.addParameter('userid', TYPES.NVarChar, userid)
@@ -518,7 +531,8 @@ function SubscribeToSecretFile(reply, secretfile, userid){
       accountRowList.add(columns)
     })
     connection.execSql(selectRequest)
-  } 
+    
+  }) 
 }
 
 function ReplyUnderConstruction(reply){
@@ -556,41 +570,55 @@ function TellUserSuccess(message, reply){
 function CreateNewPostRecord(postText, reply, secretfileid){
   console.log('Creating a new post')
 
-    if(useStaticIP == false){
-      var rowList = new List()
-      var totalSecretFileCount = 0
-      var selectRequest = new Request(
-        'SELECT * FROM POSTITEM WHERE groupID=@secretfileid',
-      function(err) {  
-        if (err) {  
-          console.log(err);
-        }  
+    pool.acquire(function(err, connection){
+        if (err) {
+            console.error(err);
+            return;
+        }
 
-        totalSecretFileCount = (rowList.toArray()).length//used for number in #DLSU Secret Files <number here>
-        var queryRequest = new Request(
-          'INSERT INTO POSTITEM (postImage, userId, groupID, reactionCount, body, title) VALUES (@image, @userid, @groupid, @reactionCount, @bodyText, @titleText)', 
+        var rowList = new List()
+        var totalSecretFileCount = 0
+        var selectRequest = new Request(
+          'SELECT * FROM POSTITEM WHERE groupID=@secretfileid',
         function(err) {  
           if (err) {  
             console.log(err);
-            SomethingWentWrong("posting", reply)
-          } else{
-            TellUserSuccess("Posted to "+secretfileid+"!", reply)
-          }
+          }  
+
+          totalSecretFileCount = (rowList.toArray()).length//used for number in #DLSU Secret Files <number here>
+          pool.acquire(function(err, connection){
+              var queryRequest = new Request(
+                'INSERT INTO POSTITEM (postImage, userId, groupID, reactionCount, body, title) VALUES (@image, @userid, @groupid, @reactionCount, @bodyText, @titleText)', 
+              function(err) {  
+                if (err) {  
+                  console.log(err);
+                  SomethingWentWrong("posting", reply)
+                } else{
+                  TellUserSuccess("Posted to "+secretfileid+"!", reply)
+                }
+
+                //release the connection back to the pool when finished
+                connection.release();
+              });  
+              queryRequest.addParameter('image', TYPES.NVarChar, '');
+              queryRequest.addParameter('userid', TYPES.NVarChar, '');
+              queryRequest.addParameter('groupid', TYPES.NVarChar, secretfileid);
+              queryRequest.addParameter('reactionCount', TYPES.NVarChar, '');
+              queryRequest.addParameter('bodyText', TYPES.NVarChar, postText);
+              queryRequest.addParameter('titleText', TYPES.NVarChar, '#'+removeSpaces(secretfileid)+totalSecretFileCount);
+              connection.execSql(queryRequest); 
+          })
+
+          //release the connection back to the pool when finished
+          connection.release();
         });  
-        queryRequest.addParameter('image', TYPES.NVarChar, '');
-        queryRequest.addParameter('userid', TYPES.NVarChar, '');
-        queryRequest.addParameter('groupid', TYPES.NVarChar, secretfileid);
-        queryRequest.addParameter('reactionCount', TYPES.NVarChar, '');
-        queryRequest.addParameter('bodyText', TYPES.NVarChar, postText);
-        queryRequest.addParameter('titleText', TYPES.NVarChar, '#'+removeSpaces(secretfileid)+totalSecretFileCount);
-        connection.execSql(queryRequest); 
-      });  
-      selectRequest.addParameter('secretfileid', TYPES.NVarChar, secretfileid)
-      selectRequest.on('row', function(columns){
-        rowList.add(columns)
-      })
-      connection.execSql(selectRequest)
-    } 
+        selectRequest.addParameter('secretfileid', TYPES.NVarChar, secretfileid)
+        selectRequest.on('row', function(columns){
+          rowList.add(columns)
+        })
+        connection.execSql(selectRequest)
+        
+    })
 
     console.log('CreateNewPostRecord done')
     return true
@@ -600,13 +628,16 @@ function CreateNewSecretFileRecord(title, desc, imageurl) {
     try{
       console.log('Creating a new Secret File: '+title+' with description: '+desc)
 
-      if(useStaticIP == false){
+      pool.acquire(function(err, connection){
         var queryRequest = new Request(
           'INSERT INTO GROUPITEM (groupName, groupDesc, groupImage, adminuserId) VALUES (@title, @desc, @image, @adminuserId)', 
         function(err) {  
           if (err) {  
-              console.log(err);
-            }  
+            console.log(err);
+          }  
+
+          //release the connection back to the pool when finished
+          connection.release();
         });  
 
         //insert values into those marked w '@'
@@ -616,7 +647,8 @@ function CreateNewSecretFileRecord(title, desc, imageurl) {
         queryRequest.addParameter('adminuserId', TYPES.NVarChar, '');
 
         connection.execSql(queryRequest); 
-      } 
+        
+      }) 
 
       console.log('CreateNewSecretFileRecord executed')
     }catch(err){
@@ -683,9 +715,9 @@ bot.on('postback', (postbackContainer, reply, actions) => {
   }else if(_payload.includes(postbackCommentOnPostString)){
     //handle comment on post
     ReplyUnderConstruction(reply)
-  }else if(_payload.includes(postbackReadMorePostsString)){
+  /*}else if(_payload.includes(postbackReadMorePostsString)){
     //load another post
-    FetchPostsInSecretFile(extractDataFromPayload(_payload, 2), reply)
+    FetchPostsInSecretFile(extractDataFromPayload(_payload, 2), reply)*/
   }else if(_payload.includes(postbackReadFromThisSecretFileString)){
     FetchPostsInSecretFile(extractDataFromPayload(_payload, 1), reply)
   }
@@ -711,14 +743,17 @@ function ShowPostsToUser(postList, reply){
           [
             createButton("postback", 'Comment', 
               postbackCommentOnPostString+VALUESEPARATOR+columns[0].value+VALUESEPARATOR+columns[7].value),
-            createButton("postback", 'Read More', 
-              postbackReadMorePostsString+VALUESEPARATOR+columns[0].value+VALUESEPARATOR+columns[7].value)
+            //createButton("postback", 'Read More', 
+             // postbackReadMorePostsString+VALUESEPARATOR+columns[0].value+VALUESEPARATOR+columns[7].value)
           ]
         )
       )
     }else{
       ReplyWithQuickReply('No more posts left to read', createMessageOptions(), reply)
     }
+
+    //console.log("deleted post from unread list: " + postList.delete(columns))
+    //return false
   })
 
   ShowAttachmentToUser(null, elementsList.toArray(), reply)
@@ -1040,110 +1075,116 @@ function ShowAllSubscribedPosts(payload, reply, userid){
 
   //ask user which subscribed secret file to read from
   var accountList = new List()
-  var selectRequest = new Request(
-    'SELECT subscribedTo FROM ACCOUNTITEM WHERE username=@userid',
-    function(err){
-      if (err) {  
-        console.log(err);
-      } 
-
-      //done executing
-      var accountsArr = accountList.toArray()
-      if(accountsArr.length == 0){
-        console.log('No accounts found')
-      }
-      else if(accountsArr.length > 1){
-        console.log('multiple accounts detected')
-      }else{
-        //now for each secret file in the 'subscribedTo' field, create a new element for the attachment and add it to elementsList, then when done create the attachment and send to user using 'reply' object
-        accountsArr.forEach(function(subscribedToString){
-          var secretfilesArr = subscribedToString.trim().split(VALUESEPARATOR)
-          console.log(userid+' subscribed to '+secretfilesArr.length+' secret files')
-          var matchingSecretFileList = new List()
-
-          for(var c = 0;c < secretfilesArr.length -1;c++){
-            var secretfilename = secretfilesArr[c]
-            try{
-                  console.log('fetching groupitem data of '+ secretfilename)
-                  var secretFileRequest = new Request('SELECT * FROM GROUPITEM WHERE groupName=@secretfilename',
-                  function(err){
-                    if (err) {  
-                      console.log(err);
-                    }
-
-                    console.log('secretFileRequest done executing query')
-                      //ask user which secret file to read from
-                      var elements = elementsList.toArray()
-                      console.log('done adding to elementsList: '+elements.length)
-                      if(elements.length > 0) {
-                        ShowAttachmentToUser('Which Secret File do you want to read?', elements, reply)
-                      }else {
-                        reply(
-                          { text: 'You\'re not subscribed to any Secret Files yet' }, (err, info) => {
-                            if(err){
-                              console.log(err.message)
-                              throw err
-                            }
-                        })
-                        ShowSecretFilesSubscriptions(userid, reply, SubscribeStringPostback)
-                      } 
-                  })
-                  secretFileRequest.addParameter('secretfilename', TYPES.NVarChar, secretfilename) 
-                  secretFileRequest.on('row', function(columns){
-                    console.log('new row fetched from secretFileRequests')
-                    console.log('adding an element to elementsList from matchingSecretFileList')
-                      elementsList.add(createElementForPayloadForAttachmentForMessage(
-                        (columns[5]).value,
-                        (columns[6]).value,
-                        '',
-                        '',
-                        [
-                          createButton("postback", postbackReadFromThisSecretFileString, 
-                            postbackReadFromThisSecretFileString+VALUESEPARATOR+columns[5].value)
-                        ]
-                      ))
-                  })
-                  //for some reason this causes Request Error exception on heroku with QuotaGuardStatic, moved code to function param
-                  /*secretFileRequest.on('requestCompleted', function () {
-                      console.log('secretFileRequest.requestCompleted event fired')
-                      //ask user which secret file to read from
-                      var elements = elementsList.toArray()
-                      console.log('done adding to elementsList: '+elements.length)
-                      if(elements.length > 0) {
-                        ShowAttachmentToUser('Which Secret File do you want to read?', elements, reply)
-                      }else {
-                        reply(
-                          { text: 'You\'re not subscribed to any Secret Files yet' }, (err, info) => {
-                            if(err){
-                              console.log(err.message)
-                              throw err
-                            }
-                        })
-                        ShowSecretFilesSubscriptions(userid, reply, SubscribeStringPostback)
-                      }
-                  });*/
-                  connection.execSql(secretFileRequest)
-            }catch(err){
-              console.log('error in ShowSubscribedPosts: '+err.message)
-            }
-          }
-
-          secretfilesArr.forEach(function(secretfilename){
-          })
-
-          
-        })
-      }
-
-
+  pool.acquire(function(err, connection){
+    if (err) {
+        console.error(err);
+        return;
     }
-  )
-  selectRequest.addParameter('userid', TYPES.NVarChar, userid)
-  selectRequest.on('row', function(columns){
-    accountList.add(columns[0].value)
-    console.log('added new row in selectRequest for accountsList')
+
+    var selectRequest = new Request(
+      'SELECT subscribedTo FROM ACCOUNTITEM WHERE username=@userid',
+      function(err){
+        if (err) {  
+          console.log(err);
+        } 
+
+        //done executing
+        var accountsArr = accountList.toArray()
+        if(accountsArr.length == 0){
+          console.log('No accounts found')
+        }
+        else if(accountsArr.length > 1){
+          console.log('multiple accounts detected')
+        }else{
+          //now for each secret file in the 'subscribedTo' field, create a new element for the attachment and add it to elementsList, then when done create the attachment and send to user using 'reply' object
+          accountsArr.every(function(subscribedToString){
+            var secretfilesArr = subscribedToString.trim().split(VALUESEPARATOR)
+            //console.log(userid+' subscribed to '+secretfilesArr.length+' secret files')
+            var matchingSecretFileList = new List()
+
+            for(var c = 0;c < secretfilesArr.length -1;c++){
+              console.log('SUBSCRIPTION ITERATION OUTSIDE secretFileRequest: '+c)
+              var afterLoopThreadCounter = 0
+              var secretfilename = secretfilesArr[c]
+              try{
+                    pool.acquire(function(err, connection){
+                      if (err) {
+                          console.error(err);
+                          return;
+                      }
+
+                      //console.log('fetching groupitem data of '+ secretfilename)
+                      var secretFileRequest = new Request('SELECT * FROM GROUPITEM WHERE groupName=@secretfilename',
+                        function(err){
+                          if (err) {  
+                            console.log(err);
+                          }
+
+                          
+
+                          
+                      })
+                      secretFileRequest.addParameter('secretfilename', TYPES.NVarChar, secretfilename) 
+                      secretFileRequest.on('row', function(columns){
+                          elementsList.add(createElementForPayloadForAttachmentForMessage(
+                            (columns[5]).value,
+                            (columns[6]).value, '', '',
+                            [
+                              createButton("postback", postbackReadFromThisSecretFileString, 
+                                postbackReadFromThisSecretFileString+VALUESEPARATOR+columns[5].value)
+                            ]
+                          ))
+                      })
+                      secretFileRequest.on('requestCompleted', function(){
+                          afterLoopThreadCounter++
+                          var elements = elementsList.toArray()
+                          console.log('SUBSCRIPTION ITERATION: '+c)
+                          
+                          //ask user which secret file to read from
+                          if(afterLoopThreadCounter == secretfilesArr.length - 1){
+                            if(elements.length > 0) {
+                              ShowAttachmentToUser('Which Secret File do you want to read?', elements, reply)
+                            }else {
+                              reply(
+                                { text: 'You\'re not subscribed to any Secret Files yet' }, (err, info) => {
+                                  if(err){
+                                    console.log(err.message)
+                                    throw err
+                                  }
+                              })
+                              ShowSecretFilesSubscriptions(userid, reply, SubscribeStringPostback)
+                            }
+                            afterLoopThreadCounter = 0;
+                          }
+
+                          //release the connection back to the pool when finished
+                          connection.release();
+                      })
+                      connection.execSql(secretFileRequest)
+                    })
+              }catch(err){
+                console.log('error in ShowSubscribedPosts: '+err.message)
+              }
+            }
+
+            return false
+          })
+        }
+
+        
+
+        //release the connection back to the pool when finished
+        connection.release();
+      }
+    )
+    selectRequest.addParameter('userid', TYPES.NVarChar, userid)
+    selectRequest.on('row', function(columns){
+      accountList.add(columns[0].value)
+      console.log('added new row in selectRequest for accountsList')
+    })
+    connection.execSql(selectRequest)
+    
   })
-  connection.execSql(selectRequest)
 
   //FetchPostsInSecretFile(secretfilename)
 }
@@ -1320,7 +1361,7 @@ function ShowSecretFilesSubscriptions(senderid, reply, postbackPayloadTypeString
       buttonText = "Post here"
     }
 
-    if(useStaticIP == false){
+    pool.acquire(function(err, connection){
       bot.getProfile(senderid, (err, profile) => {
         if (err) {
           console.log(err.message)
@@ -1332,9 +1373,10 @@ function ShowSecretFilesSubscriptions(senderid, reply, postbackPayloadTypeString
         var rowList = new List()
         var elementsList = new List()
         var queryRequest = new Request(GETALLSECRETFILESQUERY, function(err) {  
-        if (err) {  
-            console.log(err);}  
-        });  
+          if (err) {  
+              console.log(err);}  
+          }
+        );  
 
         queryRequest.on('row', function(columns) {
             var skip = false;
@@ -1391,11 +1433,14 @@ function ShowSecretFilesSubscriptions(senderid, reply, postbackPayloadTypeString
             })
           }
 
+          //release the connection back to the pool when finished
+          connection.release()
         });  
 
         connection.execSql(queryRequest); 
+        
       })
-    }
+    })
       
 }
 /////////////////////////////////////////////////
