@@ -731,30 +731,33 @@ bot.on('postback', (postbackContainer, reply, actions) => {
 /////////////////////////////// Helper functions
 function ShowPostsToUser(postList, reply){
   var elementsList = new List()
-  postList.forEach(function(columns){
-    if(columns){
-      elementsList.add(
-        createElementForPayloadForAttachmentForMessage(
-          columns[10].value,
-          columns[9].value,
-          '', '',
-          //"https://4.bp.blogspot.com", 
-          //"https://4.bp.blogspot.com/-BB8-tshB9fk/WA9IvvztmfI/AAAAAAAAcHU/hwMnPbAM4lUx8FtCTiSp7IpIes-S0RkLgCLcB/s640/dlsu-campus.jpg", 
-          [
-            createButton("postback", 'Comment', 
-              postbackCommentOnPostString+VALUESEPARATOR+columns[0].value+VALUESEPARATOR+columns[7].value),
-            //createButton("postback", 'Read More', 
-             // postbackReadMorePostsString+VALUESEPARATOR+columns[0].value+VALUESEPARATOR+columns[7].value)
-          ]
+  var postsArr = postList.toArray()
+  if(postsArr.length > 0){
+    postsArr.forEach(function(columns){
+      if(columns){
+        elementsList.add(
+          createElementForPayloadForAttachmentForMessage(
+            columns[10].value,
+            columns[9].value,
+            '', '',
+            //"https://4.bp.blogspot.com", 
+            //"https://4.bp.blogspot.com/-BB8-tshB9fk/WA9IvvztmfI/AAAAAAAAcHU/hwMnPbAM4lUx8FtCTiSp7IpIes-S0RkLgCLcB/s640/dlsu-campus.jpg", 
+            [
+              createButton("postback", 'Comment', 
+                postbackCommentOnPostString+VALUESEPARATOR+columns[0].value+VALUESEPARATOR+columns[7].value),
+              //createButton("postback", 'Read More', 
+              // postbackReadMorePostsString+VALUESEPARATOR+columns[0].value+VALUESEPARATOR+columns[7].value)
+            ]
+          )
         )
-      )
-    }else{
-      ReplyWithQuickReply('No more posts left to read', createMessageOptions(), reply)
-    }
-
-    //console.log("deleted post from unread list: " + postList.delete(columns))
-    //return false
-  })
+      }else{
+        ReplyWithQuickReply('No more posts left to read', createMessageOptions(), reply)
+      }
+    })
+  }else{
+    ReplyWithQuickReply('No more posts left to read', createMessageOptions(), reply)
+  }
+  
 
   ShowAttachmentToUser(null, elementsList.toArray(), reply)
 }
@@ -1476,39 +1479,3 @@ console.log('Express NodeJS bot server running at port '+ port)
 //heroku server running at url https://murmuring-depths-99314.herokuapp.com/ and verify token 'token'
 
 //////////////////////////////////
-
-/**
- * db query pattern
- */
-/* 
-  var QUERY = ""
-  var rowList = new List()
-  var elementsList = new List()
-  var queryRequest = new Request(QUERY, function(err) {  
-  if (err) {  
-      console.log(err)
-    }  
-  });  
-
-  queryRequest.on('row', function(columns) {
-      var skip = false;
-      columns.forEach(function(column) {  
-        if (column.value === null) {  
-          skip = true
-          console.log('empty value, skipping')
-        }
-        if(column.value == ''){
-          skip = true
-          console.log('empty value, skipping')
-        }  
-      });  
-      if(skip == false) rowList.add(columns)
-  });  
-
-  queryRequest.on('doneProc', function(rowCount, more) { 
-      console.log(rowCount + ' rows returned');  
-      
-  });  
-
-  connection.execSql(queryRequest); 
-*/
