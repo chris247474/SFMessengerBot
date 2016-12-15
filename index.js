@@ -49,7 +49,7 @@ var PostStringPostback = "PostPostback"
 var HowDoesItWorkString = "How does it work?"
 var TryItOutString = 'Try it out'
 var CreateNewSecretFileString = "Create Secret File"
-var postbackCommentOnPostString = 'Comment'
+var postbackCommentOnPostString = 'Read This'
 var postbackReadMorePostsString = 'Read More'
 var postbackReadFromThisSecretFileString = 'Read From Here'
 
@@ -1122,19 +1122,16 @@ function ShowAllSubscribedPosts(payload, reply, userid){
                           if (err) {  
                             console.log(err);
                           }
-
-                          
-
-                          
                       })
                       secretFileRequest.addParameter('secretfilename', TYPES.NVarChar, secretfilename) 
-                      secretFileRequest.on('row', function(columns){
+                      secretFileRequest.on('row', function(cols){
+                          //bug - adds same row data on multiple row events due to parrallel queries
                           elementsList.add(createElementForPayloadForAttachmentForMessage(
-                            (columns[5]).value,
-                            (columns[6]).value, '', '',
+                            (cols[5]).value,
+                            (cols[6]).value, '', '',
                             [
                               createButton("postback", postbackReadFromThisSecretFileString, 
-                                postbackReadFromThisSecretFileString+VALUESEPARATOR+columns[5].value)
+                                postbackReadFromThisSecretFileString+VALUESEPARATOR+cols[5].value)
                             ]
                           ))
                       })
@@ -1356,7 +1353,6 @@ function createTemplateAttachmentForMessage(elementsArray){
 }
 
 function ShowSecretFilesSubscriptions(senderid, reply, postbackPayloadTypeString){
-    console.log('ShowSecretFilesString() Activated')
     var buttonText = ''
     if(postbackPayloadTypeString.includes(SubscribeStringPostback)){
       buttonText = "Subscribe"
