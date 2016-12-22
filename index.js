@@ -1507,9 +1507,9 @@ app.use(bodyParser.urlencoded({
   extended: true
 }))
 
-app.get('/', (req, res) => {
-  var fullUrl = req.protocol + '://' + req.get('host') + req.originalUrl
-  console.log('url requested is '+fullUrl)
+app.get('/webhook', (req, res) => {
+  //var fullUrl = req.protocol + '://' + req.get('host') + req.originalUrl
+  //console.log('url requested is '+fullUrl)
   return bot._verify(req, res)
   //res.send(req.url)
 })
