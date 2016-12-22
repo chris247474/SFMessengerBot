@@ -1501,7 +1501,7 @@ function ShowSecretFilesSubscriptions(senderid, reply, postbackPayloadTypeString
 //working on local html loading in webview
 let app = express()
 
-app.use(express.static("SecretFilesMessengerBot"))
+app.use(express.static("public"))
 app.use(bodyParser.json())
 app.use(bodyParser.urlencoded({
   extended: true
