@@ -284,7 +284,7 @@ var staticFileURL = ''
 
 if(localTestMode == true){
   serverString = 'chrisdavetv.database.windows.net'
-  staticFileURL = "http://6fcc623b.ngrok.io/"
+  staticFileURL = "https://e1572428.ngrok.io"
 }else{
   serverString = '127.0.0.1'
   staticFileURL = "https://murmuring-depths-99314.herokuapp.com/"
@@ -305,7 +305,7 @@ var connectionConfig = {
 var poolConfig = {
   min: 1,
   max: 4,
-  log: true
+  log: false
 };
 //create the pool
 var pool = new ConnectionPool(poolConfig, connectionConfig);
@@ -607,6 +607,7 @@ function CreateNewPostRecord(postText, reply, secretfileid){
                   SomethingWentWrong("posting", reply)
                 } else{
                   TellUserSuccess("Posted to "+secretfileid+"!", reply)
+                  //pendingPostText = ''
                 }
 
                 //release the connection back to the pool when finished
@@ -696,10 +697,10 @@ bot.on('message', (callbackObject, reply) => {//fb servers are being screwy i th
     else if(handleMessages(callbackObject.message.text, callbackObject, reply)){//handles manually typed commands
       console.log('------------------------ received manually typed command --------------------------------------')
     }
-    else{
+    /*else{
       console.log('------------------------ received confusing message ---------------------------')
       messageUserTypicalCommands(reply)//handles text otherwise not understood by bot
-    }
+    }*/
   }else {
     SendMessageToWitAI(callbackObject.sender.id, callbackObject.message.text)
   }
@@ -745,10 +746,14 @@ bot.on('postback', (postbackContainer, reply, actions) => {
 
 /////////////////////////////// Helper functions
 
-function CreatePostHTML(filename, postTitle){
+function CreatePostHTML(filename, postTitle, bodytitle, bodytext, alias, date){
   //render html text string with pug
   var html = compiledFunction({
-    secretfilenumber: postTitle
+    secretfilenumber: postTitle,
+    bodytitle: bodytitle,
+    bodytext: bodytext,
+    alias: alias,
+    date: date
   })
 
   //save string to html file
@@ -774,13 +779,15 @@ function ShowPostsToUser(postList, reply){
                   +
                   "/"+filename
         var title = columns[10].value
-        var desc = columns[9].value
-        CreatePostHTML(filename, title)
+        var body = columns[9].value
+        var secretfile = columns[7].value
+        var date = new Date(columns[1].value+'Z').toString()
+        CreatePostHTML(filename, secretfile, '#'+title, body, '', date)
 
         elementsList.add(
           createElementForPayloadForAttachmentForMessage(
             title,
-            desc,
+            body,
             '', '',
             //"https://4.bp.blogspot.com", 
             //"https://4.bp.blogspot.com/-BB8-tshB9fk/WA9IvvztmfI/AAAAAAAAcHU/hwMnPbAM4lUx8FtCTiSp7IpIes-S0RkLgCLcB/s640/dlsu-campus.jpg", 
