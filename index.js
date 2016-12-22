@@ -772,7 +772,7 @@ function ShowPostsToUser(postList, reply){
       if(columns){
         //create html files for each post
         var filename = columns[10].value+".html"
-        var url = "http://6fcc623b.ngrok.io/"//"http://localhost:"+port
+        var url = "https://murmuring-depths-99314.herokuapp.com/"//"http://6fcc623b.ngrok.io/"//"http://localhost:"+port
                   +
                   "/"+filename
         var title = columns[10].value
@@ -1526,6 +1526,6 @@ app.listen(port)
 console.log('Express NodeJS bot server running at port '+ port)
 
 //for webhook w facebook messenger
-//heroku server running at url https://murmuring-depths-99314.herokuapp.com/ and verify token 'token'
+//heroku server running at url https://murmuring-depths-99314.herokuapp.com/webhook and verify token 'token'
 
 //////////////////////////////////
