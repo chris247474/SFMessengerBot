@@ -1,6 +1,11 @@
 'use strict'
 const http = require('http')
 
+//port
+var port = 
+  process.env.PORT 
+  || 5000
+
 //lightweight wrapper for common fb messenger GET POST
 const Bot = require('messenger-bot')
 
@@ -719,7 +724,7 @@ bot.on('postback', (postbackContainer, reply, actions) => {
     pendingPostText = ''
   }else if(_payload.includes(postbackCommentOnPostString)){
     //view full post
-    ExpandPostInWebView()
+    //ExpandPostInWebView()
   /*}else if(_payload.includes(postbackReadMorePostsString)){
     //load another post
     FetchPostsInSecretFile(extractDataFromPayload(_payload, 2), reply)*/
@@ -735,10 +740,21 @@ bot.on('postback', (postbackContainer, reply, actions) => {
 
 /////////////////////////////// Helper functions
 
-function ExpandPostInWebView(){
+function CreatePostHTML(filename, postTitle){
   //render html text string with pug
+  var html = compiledFunction({
+    title: postTitle
+  })
+
   //save string to html file
-  //pass html file path as part of fb messenger webview
+  var fs = require('fs');
+  try{
+    fs.writeFileSync("public/"+filename, html)
+  }catch(err){
+    console.log(err.message)
+    throw err
+  }
+
 }
 
 function ShowPostsToUser(postList, reply){
@@ -747,18 +763,26 @@ function ShowPostsToUser(postList, reply){
   if(postsArr.length > 0){
     postsArr.forEach(function(columns){
       if(columns){
+        //create html files for each post
+        var filename = columns[10].value+".html"
+        var url = "http://localhost:"+port+"/"+filename
+        var title = columns[10].value
+        var desc = columns[9].value
+        CreatePostHTML(filename, title)
+
         elementsList.add(
           createElementForPayloadForAttachmentForMessage(
-            columns[10].value,
-            columns[9].value,
+            title,
+            desc,
             '', '',
             //"https://4.bp.blogspot.com", 
             //"https://4.bp.blogspot.com/-BB8-tshB9fk/WA9IvvztmfI/AAAAAAAAcHU/hwMnPbAM4lUx8FtCTiSp7IpIes-S0RkLgCLcB/s640/dlsu-campus.jpg", 
             [
-              createButton("postback", 'Read This', 
+              createUrlButton("Read Full", url)//"https://www.google.com")
+              /*createButton("postback", 'Read This', 
                 postbackCommentOnPostString+VALUESEPARATOR+columns[0].value+VALUESEPARATOR+columns[7].value),
               //createButton("postback", 'Read More', 
-              // postbackReadMorePostsString+VALUESEPARATOR+columns[0].value+VALUESEPARATOR+columns[7].value)
+              // postbackReadMorePostsString+VALUESEPARATOR+columns[0].value+VALUESEPARATOR+columns[7].value)*/
             ]
           )
         )
@@ -1316,6 +1340,20 @@ function createMessageOptions(){
   ]
 }
 
+function createUrlButton(title, url){
+  var button = {
+    "type":"web_url",
+    "url": url,
+    "title": title,
+    "webview_height_ratio": "tall",
+    //"messenger_extensions": true,  
+    //"fallback_url": "https://petersfancyapparel.com/fallback"//url property not supported on messenger.com
+  }
+  
+  console.log('Creating url button with title '+ button.title+' and url '+button.url)
+  return button 
+}
+
 function createButton(type, title, postbackPayloadTypeString){
   var button = {
     "type":type,
@@ -1460,26 +1498,31 @@ function ShowSecretFilesSubscriptions(senderid, reply, postbackPayloadTypeString
 
 
 ////////////////////////////// Start server using express as middleware
-
+//working on local html loading in webview
 let app = express()
 
+app.use(express.static("SecretFilesMessengerBot"))
 app.use(bodyParser.json())
 app.use(bodyParser.urlencoded({
   extended: true
 }))
 
 app.get('/', (req, res) => {
+  var fullUrl = req.protocol + '://' + req.get('host') + req.originalUrl
+  console.log('url requested is '+fullUrl)
   return bot._verify(req, res)
+  //res.send(req.url)
 })
 
-app.post('/', (req, res) => {
+/*app.post('/', (req, res) => {
+  res.end(JSON.stringify({status: 'ok'}))
+})*/
+
+app.post('/webhook', (req, res) => {
   bot._handleMessage(req.body)
   res.end(JSON.stringify({status: 'ok'}))
 })
 
-var port = 
-  process.env.PORT || 
-  5000
 http.createServer(app).listen(port)
 console.log('Express NodeJS bot server running at port '+ port)
 
