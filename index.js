@@ -1,6 +1,9 @@
 'use strict'
 const http = require('http')
 
+//for joining file paths
+var path = require('path');
+
 //port
 var port = 
   process.env.PORT 
@@ -128,6 +131,7 @@ const firstEntityValue = (entities, entity) => {
   }
   return null
 };
+
 const fbMessage = (id, text) => {
   const body = JSON.stringify({
     recipient: { id },
@@ -279,7 +283,7 @@ function SendMessageToWitAI(senderid, messageToProcess){
 var VALUESEPARATOR = ';'
 
 var pendingPostText = ''
-var localTestMode = true
+var localTestMode = false
 var serverString = ''
 
 if(localTestMode == true){
@@ -615,7 +619,7 @@ function CreateNewPostRecord(postText, reply, secretfileid){
               queryRequest.addParameter('groupid', TYPES.NVarChar, secretfileid);
               queryRequest.addParameter('reactionCount', TYPES.NVarChar, '');
               queryRequest.addParameter('bodyText', TYPES.NVarChar, postText);
-              queryRequest.addParameter('titleText', TYPES.NVarChar, '#'+removeSpaces(secretfileid)+totalSecretFileCount);
+              queryRequest.addParameter('titleText', TYPES.NVarChar, /*'#'+*/ removeSpaces(secretfileid)+totalSecretFileCount);
               connection.execSql(queryRequest); 
           })
 
@@ -691,8 +695,11 @@ bot.on('message', (callbackObject, reply) => {
       //handles quick_replies
       handleMessages(callbackObject.message.quick_reply.payload, callbackObject, reply)
     }
-    else if(handleMessages(callbackObject.message.text, callbackObject, reply)){}//handles manually typed commands
+    else if(handleMessages(callbackObject.message.text, callbackObject, reply)){//handles manually typed commands
+      console.log('------------------------ received manually typed command --------------------------------------')
+    }
     else{
+      console.log('------------------------ received confusing message ---------------------------')
       messageUserTypicalCommands(reply)//handles text otherwise not understood by bot
     }
   }else {
@@ -743,7 +750,7 @@ bot.on('postback', (postbackContainer, reply, actions) => {
 function CreatePostHTML(filename, postTitle){
   //render html text string with pug
   var html = compiledFunction({
-    title: postTitle
+    secretfilenumber: postTitle
   })
 
   //save string to html file
@@ -765,7 +772,9 @@ function ShowPostsToUser(postList, reply){
       if(columns){
         //create html files for each post
         var filename = columns[10].value+".html"
-        var url = "http://localhost:"+port+"/"+filename
+        var url = "http://6fcc623b.ngrok.io/"//"http://localhost:"+port
+                  +
+                  "/"+filename
         var title = columns[10].value
         var desc = columns[9].value
         CreatePostHTML(filename, title)
@@ -778,7 +787,7 @@ function ShowPostsToUser(postList, reply){
             //"https://4.bp.blogspot.com", 
             //"https://4.bp.blogspot.com/-BB8-tshB9fk/WA9IvvztmfI/AAAAAAAAcHU/hwMnPbAM4lUx8FtCTiSp7IpIes-S0RkLgCLcB/s640/dlsu-campus.jpg", 
             [
-              createUrlButton("Read Full", url)//"https://www.google.com")
+              createUrlButton("Read Full", url)//"https://www.facebook.com")//attempting to access local files doesnt work
               /*createButton("postback", 'Read This', 
                 postbackCommentOnPostString+VALUESEPARATOR+columns[0].value+VALUESEPARATOR+columns[7].value),
               //createButton("postback", 'Read More', 
@@ -792,8 +801,7 @@ function ShowPostsToUser(postList, reply){
     })
   }else{
     ReplyWithQuickReply('No more posts left to read', createMessageOptions(), reply)
-  }
-  
+  } 
 
   ShowAttachmentToUser(null, elementsList.toArray(), reply)
 }
@@ -1494,36 +1502,27 @@ function ShowSecretFilesSubscriptions(senderid, reply, postbackPayloadTypeString
 }
 /////////////////////////////////////////////////
 
-
-
-
 ////////////////////////////// Start server using express as middleware
 //working on local html loading in webview
 let app = express()
 
-app.use(express.static("public"))
+app.use(express.static(path.join(__dirname, 'public'), { index: false}));
 app.use(bodyParser.json())
 app.use(bodyParser.urlencoded({
   extended: true
 }))
 
 app.get('/webhook', (req, res) => {
-  //var fullUrl = req.protocol + '://' + req.get('host') + req.originalUrl
-  //console.log('url requested is '+fullUrl)
   return bot._verify(req, res)
-  //res.send(req.url)
 })
-
-/*app.post('/', (req, res) => {
-  res.end(JSON.stringify({status: 'ok'}))
-})*/
 
 app.post('/webhook', (req, res) => {
   bot._handleMessage(req.body)
   res.end(JSON.stringify({status: 'ok'}))
 })
 
-http.createServer(app).listen(port)
+//http.createServer(app).listen(port)
+app.listen(port)
 console.log('Express NodeJS bot server running at port '+ port)
 
 //for webhook w facebook messenger
