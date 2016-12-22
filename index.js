@@ -4,11 +4,6 @@ const http = require('http')
 //for joining file paths
 var path = require('path');
 
-//port
-var port = 
-  process.env.PORT 
-  || 5000
-
 //lightweight wrapper for common fb messenger GET POST
 const Bot = require('messenger-bot')
 
@@ -790,7 +785,7 @@ function ShowPostsToUser(postList, reply){
             //"https://4.bp.blogspot.com", 
             //"https://4.bp.blogspot.com/-BB8-tshB9fk/WA9IvvztmfI/AAAAAAAAcHU/hwMnPbAM4lUx8FtCTiSp7IpIes-S0RkLgCLcB/s640/dlsu-campus.jpg", 
             [
-              createUrlButton("Read Full", url)//"https://www.facebook.com")//attempting to access local files doesnt work
+              createUrlButton("Read Full", url)//test
             ]
           )
         )
@@ -1511,20 +1506,25 @@ app.use(bodyParser.urlencoded({
   extended: true
 }))
 
-app.get('/webhook', (req, res) => {
+app.get('/', (req, res) => {
   return bot._verify(req, res)
 })
 
-app.post('/webhook', (req, res) => {
+app.post('/', (req, res) => {
   bot._handleMessage(req.body)
   res.end(JSON.stringify({status: 'ok'}))
 })
+
+//port
+var port = 
+  process.env.PORT 
+  || 5000
 
 //http.createServer(app).listen(port)
 app.listen(port)
 console.log('Express NodeJS bot server running at port '+ port)
 
 //for webhook w facebook messenger
-//heroku server running at url https://murmuring-depths-99314.herokuapp.com/webhook and verify token 'token'
+//heroku server running at url https://murmuring-depths-99314.herokuapp.com/ and verify token 'token'
 
 //////////////////////////////////
