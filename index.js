@@ -285,11 +285,14 @@ var VALUESEPARATOR = ';'
 var pendingPostText = ''
 var localTestMode = false
 var serverString = ''
+var staticFileURL = ''
 
 if(localTestMode == true){
   serverString = 'chrisdavetv.database.windows.net'
+  staticFileURL = "http://6fcc623b.ngrok.io/"
 }else{
   serverString = '127.0.0.1'
+  staticFileURL = "https://murmuring-depths-99314.herokuapp.com/"
 }
  
 // When you connect to Azure SQL Server, you need these next options.  
@@ -305,7 +308,7 @@ var connectionConfig = {
     }  
 }; 
 var poolConfig = {
-  min: 2,
+  min: 1,
   max: 4,
   log: true
 };
@@ -772,7 +775,7 @@ function ShowPostsToUser(postList, reply){
       if(columns){
         //create html files for each post
         var filename = columns[10].value+".html"
-        var url = "https://murmuring-depths-99314.herokuapp.com/"//"http://6fcc623b.ngrok.io/"//"http://localhost:"+port
+        var url = staticFileURL
                   +
                   "/"+filename
         var title = columns[10].value
@@ -788,10 +791,6 @@ function ShowPostsToUser(postList, reply){
             //"https://4.bp.blogspot.com/-BB8-tshB9fk/WA9IvvztmfI/AAAAAAAAcHU/hwMnPbAM4lUx8FtCTiSp7IpIes-S0RkLgCLcB/s640/dlsu-campus.jpg", 
             [
               createUrlButton("Read Full", url)//"https://www.facebook.com")//attempting to access local files doesnt work
-              /*createButton("postback", 'Read This', 
-                postbackCommentOnPostString+VALUESEPARATOR+columns[0].value+VALUESEPARATOR+columns[7].value),
-              //createButton("postback", 'Read More', 
-              // postbackReadMorePostsString+VALUESEPARATOR+columns[0].value+VALUESEPARATOR+columns[7].value)*/
             ]
           )
         )
