@@ -16,6 +16,7 @@
     "messenger-bot": "^2.4.0",
     "mysql2": "^1.1.2",
     "node-wit": "^4.2.0",
+    "pug": "^2.0.0-beta6",
     "request": "^2.79.0",
     "socksjs": "^0.5.0",
     "sqlite3": "^3.1.8",

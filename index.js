@@ -61,6 +61,11 @@ let bot = new Bot({
   verify: 'token'
 })
 
+//initialize dynamic HTML generator
+const pug = require('pug');
+// Compile the source code
+const compiledFunction = pug.compileFile('htmlPost.pug');
+
 //////////////////////////////////////////from wit.ai messenger.js example
 // This will contain all user sessions.
 // Each session has an entry:
@@ -269,7 +274,7 @@ function SendMessageToWitAI(senderid, messageToProcess){
 var VALUESEPARATOR = ';'
 
 var pendingPostText = ''
-var localTestMode = false
+var localTestMode = true
 var serverString = ''
 
 if(localTestMode == true){
@@ -713,8 +718,8 @@ bot.on('postback', (postbackContainer, reply, actions) => {
     ContinuePostingInNewSecretFile(pendingPostText, reply, extractDataFromPayload(_payload, 1))
     pendingPostText = ''
   }else if(_payload.includes(postbackCommentOnPostString)){
-    //handle comment on post
-    ReplyUnderConstruction(reply)
+    //view full post
+    ExpandPostInWebView()
   /*}else if(_payload.includes(postbackReadMorePostsString)){
     //load another post
     FetchPostsInSecretFile(extractDataFromPayload(_payload, 2), reply)*/
@@ -729,6 +734,13 @@ bot.on('postback', (postbackContainer, reply, actions) => {
 ///////////////////////////////
 
 /////////////////////////////// Helper functions
+
+function ExpandPostInWebView(){
+  //render html text string with pug
+  //save string to html file
+  //pass html file path as part of fb messenger webview
+}
+
 function ShowPostsToUser(postList, reply){
   var elementsList = new List()
   var postsArr = postList.toArray()
