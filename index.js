@@ -56,7 +56,7 @@ var postbackCommentOnPostString = 'Read This'
 var postbackReadMorePostsString = 'Read More'
 var postbackReadFromThisSecretFileString = 'Read From Here'
 
-const FB_PAGE_TOKEN = 'EAAX2onbWfdMBAGsG7XKJIDWuuZBoPQVt0euv438fQsWrE1aRNJGxERWRR9n1QQN7upG6k3xrwwodgEdZBibLnQFGtDsA1wT8oTnSTJe5pNeL2kqquZCDM5UopTXYpoWsBfh8sO673Uz4vzV3osCVDSxJZBKvWZBfJXCUag9bRdwZDZD'
+const FB_PAGE_TOKEN = 'EAAX2onbWfdMBAEfamUMkl6uACF8tvWOtFMSFwzjcZBl2ovDPMUbV7BcsOMzj0OUzeoSPckZAHakSwCoxOjMFUcJpWdFYyFdviUmd0nNWhjwqdpYgQrNItKwZBACRldnUvUHMnwm20cBjypOPX18jn0S1MsajtZB59x1k2ikZAEQZDZD'
 
 //initialize messenger-bot
 let bot = new Bot({
@@ -278,7 +278,7 @@ function SendMessageToWitAI(senderid, messageToProcess){
 var VALUESEPARATOR = ';'
 
 var pendingPostText = ''
-var localTestMode = false
+var localTestMode = true
 var serverString = ''
 var staticFileURL = ''
 
@@ -344,7 +344,7 @@ function Login(userid){
 
           if(rowList.toArray().length > 0){
             //then userid already exists in db
-            console.log('userid ${userid} already exists in db')
+            console.log('userid '+userid+' already exists in db')
           }else{
             CreateAccountRecord(userid)
           }
@@ -685,7 +685,7 @@ bot.on('error', (err) => {
   console.log(err.message)
 })
 
-bot.on('message', (callbackObject, reply) => {
+bot.on('message', (callbackObject, reply) => {//fb servers are being screwy i think
   console.log('received message '+callbackObject.message.text+ ' from user '+callbackObject.sender.id)
 
   if(WitAiHasControl == false){
