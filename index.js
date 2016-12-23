@@ -796,8 +796,10 @@ function isValidImageType(filetype){
 
 function isImageAttachment(callbackMessageObject){
   console.log('checking if message is image')
-  var isImage = isNullOrWhitespace(callbackMessageObject.message.attachments.payload.url)
-  if(isImage){
+  //var isImage = isNullOrWhitespace(callbackMessageObject.message.attachments.payload.url)
+  if(callbackMessageObject.message.attachments && 
+      callbackMessageObject.message.attachments.payload &&
+      callbackMessageObject.message.attachments.payload.url){
     return callbackMessageObject.message.attachments.payload.url
   }else return null
 }
