@@ -21,6 +21,9 @@ var ConnectionPool = require('tedious-connection-pool');
 var Request = tedious.Request;  
 var TYPES = tedious.TYPES; 
 
+//init date object
+const moment = require('moment');
+
 //wit.ai setup stuff
 const crypto = require('crypto');
 const fetch = require('node-fetch');
@@ -278,7 +281,7 @@ function SendMessageToWitAI(senderid, messageToProcess){
 var VALUESEPARATOR = ';'
 
 var pendingPostText = ''
-var localTestMode = false
+var localTestMode = true
 var serverString = ''
 var staticFileURL = ''
 
@@ -781,8 +784,9 @@ function ShowPostsToUser(postList, reply){
         var title = columns[10].value
         var body = columns[9].value
         var secretfile = columns[7].value
-        var date = new Date(columns[1].value+'Z').toString()
-        CreatePostHTML(filename, secretfile, '#'+title, body, '', date)
+        //var date = new Date(columns[1].value+'Z').toString()
+        var date = moment(columns[1].value).fromNow()
+        CreatePostHTML(filename, secretfile, '#'+title, body, 'CCS 109', date)
 
         elementsList.add(
           createElementForPayloadForAttachmentForMessage(
@@ -792,7 +796,7 @@ function ShowPostsToUser(postList, reply){
             //"https://4.bp.blogspot.com", 
             //"https://4.bp.blogspot.com/-BB8-tshB9fk/WA9IvvztmfI/AAAAAAAAcHU/hwMnPbAM4lUx8FtCTiSp7IpIes-S0RkLgCLcB/s640/dlsu-campus.jpg", 
             [
-              createUrlButton("Read Full", url)//test
+              createUrlButton("Read", url)//button title doesnt matter, cause it doesnt trigger an event, but goes straight to a webview
             ]
           )
         )
