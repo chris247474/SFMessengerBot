@@ -176,6 +176,20 @@ const actions = {
       return Promise.resolve()
     }
   },// You should implement your custom actions here
+  //before we get here, user has to send a photo (via gallery or webview), catch that photo in message event, 
+  //then extract link and send to wit.ai, which will call storeImageURL
+  storeImageURL({context, entities}){
+    return new Promise(function(resolve, reject) {
+      context.secretFileImageURL = firstEntityValue(entities, 'url')
+      if (context.secretFileImageURL) {
+        delete context.failedSecretFileImageURL;
+      } else {
+        context.failedSecretFileImageURL = true;
+        delete context.secretFileImageURL;
+      }
+      return resolve(context)
+    })
+  },
   storeSecretFileDesc({context, entities}){
     return new Promise(function(resolve, reject) {
       context.descriptionText =  firstEntityValue(entities, 'description')
@@ -203,16 +217,18 @@ const actions = {
     })
   },
   createNewSecretFile({context}) {
-    var descText = ''
+    var descText = 'Description recognition failed'
+    var urlText = 'Image URL recognition failed'
     return new Promise(function(resolve, reject) {
       if(context.secretFileTitleText){
         if(context.descriptionText){
             descText = context.descriptionText
-        }else {
-            descText = 'Description recognition failed'
+        }
+        if(context.secretFileImageURL){
+          urlText = context.secretFileImageURL
         }
         console.log('secretFileText is '+context.secretFileTitleText+' desc is '+descText)
-        CreateNewSecretFileRecord(context.secretFileTitleText, descText, '')
+        CreateNewSecretFileRecord(context.secretFileTitleText, descText, urlText)
       }else{
         console.log('The Secret File title is null, please try again')
       }
@@ -281,7 +297,7 @@ function SendMessageToWitAI(senderid, messageToProcess){
 var VALUESEPARATOR = ';'
 
 var pendingPostText = ''
-var localTestMode = true
+var localTestMode = false
 var serverString = ''
 var staticFileURL = ''
 
@@ -370,8 +386,6 @@ function Login(userid){
 
 function IsDoneReadingAllPostsInSecretFile(secretFileName){
   if(postCounter == 0 && allPostsRead == true){
-    //reset flags
-    //postCounter = 0
     allPostsRead = false
     return true
   }
@@ -401,21 +415,6 @@ function FetchPostsInSecretFile(secretFileName, reply){
 
       ShowPostsToUser(postsList, reply)
 
-      /*console.log('about to show a post for reading, postCounter is '+postCounter)
-      var postsArr = postsList.toArray()
-      console.log('fetched '+postsArr.length+' posts')
-      if(postsArr.length > 0){
-        ShowPostsToUser([ postsArr[postCounter] ], reply)
-        if(postCounter < postsArr.length){
-          postCounter++
-        }else{
-          postCounter = 0
-          allPostsRead = true
-        }
-      }else{
-        console.log('no posts found')
-      }*/
-
       //release the connection back to the pool when finished
       connection.release();
     })
@@ -426,18 +425,6 @@ function FetchPostsInSecretFile(secretFileName, reply){
     connection.execSql(getPostsRequest)
   })
 
-  /*if(IsDoneReadingAllPostsInSecretFile(secretFileName)){
-    reply({text: 'That\s all the posts in '+secretFileName+' for now. I\'ll notify you when another is posted!'
-          },
-      (err, info) => {
-        if(err){
-          console.log(err.message)
-          throw err
-        }
-    })
-  }else{
-      
-  }*/
 }
 
 function CreateAccountRecord(userid){
@@ -700,12 +687,20 @@ bot.on('message', (callbackObject, reply) => {//fb servers are being screwy i th
     else if(handleMessages(callbackObject.message.text, callbackObject, reply)){//handles manually typed commands
       console.log('------------------------ received manually typed command --------------------------------------')
     }
-    /*else{
+    else{
       console.log('------------------------ received confusing message ---------------------------')
       messageUserTypicalCommands(reply)//handles text otherwise not understood by bot
-    }*/
+    }
   }else {
-    SendMessageToWitAI(callbackObject.sender.id, callbackObject.message.text)
+    console.log('in Wit.ai mode')
+    var imageURL = isImageAttachment(callbackObject)
+    console.log('is image? '+imageURL)
+
+    if(imageURL){
+      SendMessageToWitAI(callbackObject.sender.id, imageURL)
+    }else{//its a text message
+      SendMessageToWitAI(callbackObject.sender.id, callbackObject.message.text)
+    }
   }
   
 })
@@ -749,6 +744,7 @@ bot.on('postback', (postbackContainer, reply, actions) => {
 
 /////////////////////////////// Helper functions
 
+
 function CreatePostHTML(filename, postTitle, bodytitle, bodytext, alias, date){
   //render html text string with pug
   var html = compiledFunction({
@@ -770,6 +766,42 @@ function CreatePostHTML(filename, postTitle, bodytitle, bodytext, alias, date){
 
 }
 
+//Add to messenger-bot on git?
+function uploadImage(recipient, filepath, filetype, callbackFunc){//integrate with CreateNewSecretFileRecord method
+  if (!callbackFunc) callbackFunc = Function.prototype
+  //if(isValidImageType(filetype)){}
+  request({
+    method: '',//post or get?
+    uri: 'https://graph.facebook.com/v2.6/me/messages',
+    qs: {
+      access_token: FB_PAGE_TOKEN
+    },
+    json: {
+      recipient: { id: recipient },
+      message: {attachment:{type:"image", payload:{}}},
+      filedata: filepath+';type=image/'+filetype
+    }
+  }, (err, res, body) => {
+    if (err) return callbackFunc(err)
+    if (body.error) return callbackFunc(body.error)
+
+    callbackFunc(null, body)
+  })
+}
+function isValidImageType(filetype){
+  if(filetype == 'png' || filetype == 'jpg' || filetype == 'gif')
+    return true
+  return false
+}
+
+function isImageAttachment(callbackMessageObject){
+  console.log('checking if message is image')
+  var isImage = isNullOrWhitespace(callbackMessageObject.message.attachments.payload.url)
+  if(isImage){
+    return callbackMessageObject.message.attachments.payload.url
+  }else return null
+}
+
 function ShowPostsToUser(postList, reply){
   var elementsList = new List()
   var postsArr = postList.toArray()
@@ -784,7 +816,6 @@ function ShowPostsToUser(postList, reply){
         var title = columns[10].value
         var body = columns[9].value
         var secretfile = columns[7].value
-        //var date = new Date(columns[1].value+'Z').toString()
         var date = moment(columns[1].value).fromNow()
         CreatePostHTML(filename, secretfile, '#'+title, body, 'CCS 109', date)
 
@@ -878,6 +909,8 @@ function removeSpaces(input){
 function handleMessages(message, callbackObject, reply){
     var postMessage = IsPost(message)
     console.log('is a post? '+ postMessage)
+
+    //add image upload condition
     try{
       if(message == ShowSecretFilesString){
         console.log("ShowSecretFilesString payload condition satisfied in message event")
@@ -918,7 +951,11 @@ function handleMessages(message, callbackObject, reply){
         pendingPostText = postText
         PostNewinSecretFile(reply, callbackObject.sender.id)
         return true
-      }
+      }/*else if(imageMessage){//move to WitAiHasControl true block
+        console.log('received an image attachment with url '+imageMessage)
+        //store image in Secret File
+        return true
+      }*/
     }catch(err){
       return err
     }
