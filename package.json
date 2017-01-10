@@ -10,7 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "body-parser": "^1.15.2",
-    "collections": "^5.0.5",
+    "collections": "^5.0.6",
     "express": "^4.14.0",
     "http": "0.0.0",
     "messenger-bot": "^2.4.0",

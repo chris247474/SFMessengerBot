@@ -297,7 +297,7 @@ function SendMessageToWitAI(senderid, messageToProcess){
 var VALUESEPARATOR = ';'
 
 var pendingPostText = ''
-var localTestMode = false
+var localTestMode = true
 var serverString = ''
 var staticFileURL = ''
 
@@ -677,6 +677,7 @@ bot.on('error', (err) => {
 })
 
 bot.on('message', (callbackObject, reply) => {//fb servers are being screwy i think
+  console.log('message received')
   console.log('received message '+callbackObject.message.text+ ' from user '+callbackObject.sender.id)
 
   if(WitAiHasControl == false){
@@ -1506,7 +1507,7 @@ function ShowSecretFilesSubscriptions(senderid, reply, postbackPayloadTypeString
           })
           var elements = elementsList.toArray()
 
-        //now show to user
+          //now show to user
           if(elements.length < 1){
             reply({ 
                 text: 'There are no Secret Files yet! ',
