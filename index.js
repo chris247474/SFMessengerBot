@@ -297,7 +297,7 @@ function SendMessageToWitAI(senderid, messageToProcess){
 var VALUESEPARATOR = ';'
 
 var pendingPostText = ''
-var localTestMode = false
+var localTestMode = true
 var serverString = ''
 var staticFileURL = ''
 
