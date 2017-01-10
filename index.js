@@ -297,7 +297,7 @@ function SendMessageToWitAI(senderid, messageToProcess){
 var VALUESEPARATOR = ';'
 
 var pendingPostText = ''
-var localTestMode = true
+var localTestMode = false
 var serverString = ''
 var staticFileURL = ''
 
@@ -1557,11 +1557,12 @@ app.use(bodyParser.urlencoded({
   extended: true
 }))
 
-app.get('/', (req, res) => {
+//if the GET and POST events dont listen for /webhook (like listening for / instead), message received event doesn't trigger for some reason
+app.get('/webhook', (req, res) => {
   return bot._verify(req, res)
 })
 
-app.post('/', (req, res) => {
+app.post('/webhook', (req, res) => {
   bot._handleMessage(req.body)
   res.end(JSON.stringify({status: 'ok'}))
 })
@@ -1571,7 +1572,6 @@ var port =
   process.env.PORT 
   || 5000
 
-//http.createServer(app).listen(port)
 app.listen(port)
 console.log('Express NodeJS bot server running at port '+ port)
 
