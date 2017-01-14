@@ -1,0 +1,1 @@
+this file is just to ensure git repo syncs public/ folder that houses all dynamically generated HTML files

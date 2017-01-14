@@ -297,7 +297,7 @@ function SendMessageToWitAI(senderid, messageToProcess){
 var VALUESEPARATOR = ';'
 
 var pendingPostText = ''
-var localTestMode = true
+var localTestMode = false
 var serverString = ''
 var staticFileURL = ''
 
@@ -744,7 +744,6 @@ bot.on('postback', (postbackContainer, reply, actions) => {
 ///////////////////////////////
 
 /////////////////////////////// Helper functions
-
 
 function CreatePostHTML(filename, postTitle, bodytitle, bodytext, alias, date){
   //render html text string with pug
@@ -1214,7 +1213,6 @@ function ShowAllSubscribedPosts(payload, reply, userid){
                       })
                       secretFileRequest.addParameter('secretfilename', TYPES.NVarChar, secretfilename) 
                       secretFileRequest.on('row', function(cols){
-                          //bug - adds same row data on multiple row events due to parrallel queries
                           elementsList.add(createElementForPayloadForAttachmentForMessage(
                             (cols[5]).value,
                             (cols[6]).value, '', '',
