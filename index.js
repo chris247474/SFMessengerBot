@@ -479,6 +479,7 @@ function SubscribeToSecretFile(reply, secretfile, userid){
         pool.acquire(function(err, connection){
             userSubscriptionList = (arr[0])[7].value
             userSubscriptionList += secretfile+VALUESEPARATOR
+            userSubscriptionList = userSubscriptionList.replace('null', '')
 
             //go ahead and update value
             var rowList = new List()
