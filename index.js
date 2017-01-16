@@ -58,6 +58,8 @@ var CreateNewSecretFileString = "Create Secret File"
 var postbackCommentOnPostString = 'Read This'
 var postbackReadMorePostsString = 'Read More'
 var postbackReadFromThisSecretFileString = 'Read From Here'
+var payloadGroupProfilePicString = 'payloadGroupProfilePicString'
+var postbackGroupProfilePicString = 'Use This'
 
 const FB_PAGE_TOKEN = 'EAAX2onbWfdMBAEfamUMkl6uACF8tvWOtFMSFwzjcZBl2ovDPMUbV7BcsOMzj0OUzeoSPckZAHakSwCoxOjMFUcJpWdFYyFdviUmd0nNWhjwqdpYgQrNItKwZBACRldnUvUHMnwm20cBjypOPX18jn0S1MsajtZB59x1k2ikZAEQZDZD'
 
@@ -343,6 +345,14 @@ connection.on('connect', function(err) {
 }); */
 
 ///////////////////////////////// SQL helper functions
+function SaveSecretFileProfilePic(imageStringAndSecretFileLabel){
+  var arr = imageStringAndSecretFileLabel.split(VALUESEPARATOR)
+  var imageString = arr[0]
+  var secretFileLabel = arr[1]
+
+  console.log('saving '+imageString+' image to secretfile '+secretFileLabel)
+  //save to db
+}
 
 function Login(userid){
     console.log('CreateAccountRecordOrLogin: logging in')
@@ -736,6 +746,8 @@ bot.on('postback', (postbackContainer, reply, actions) => {
     FetchPostsInSecretFile(extractDataFromPayload(_payload, 2), reply)*/
   }else if(_payload.includes(postbackReadFromThisSecretFileString)){
     FetchPostsInSecretFile(extractDataFromPayload(_payload, 1), reply)
+  }else if(IsImageProfilePic(extractDataFromPayload(_payload, 0))){
+    SaveSecretFileProfilePic(_payload)
   }
 
   //actions from hamburger icon on left of message field
@@ -745,6 +757,31 @@ bot.on('postback', (postbackContainer, reply, actions) => {
 ///////////////////////////////
 
 /////////////////////////////// Helper functions
+
+function IsImageProfilePic(imageString){
+  return true
+}
+
+function ShowGroupProfilePics(secretfileString, reply){
+  var elementList = new List()
+  //loop through db stored images
+  var imageStrings = []
+  for(var c = 0;c < imageStrings.length;c++){
+    elementList.add(
+      createElementForPayloadForAttachmentForMessage(
+        '',
+        '',//"https://4.bp.blogspot.com", 
+        imageStrings[c],
+        , '' 
+        [
+          createButton("postback", postbackGroupProfilePicString, 
+                                    imageStrings[c]+VALUESEPARATOR+secretfileString)
+        ]
+      )
+    )
+  }
+  ShowAttachmentToUser("Choose an image for your Secret File", elementList.toArray(), reply)
+}
 
 function CreatePostHTML(filename, postTitle, bodytitle, bodytext, alias, date){
   //render html text string with pug
