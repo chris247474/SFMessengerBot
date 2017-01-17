@@ -345,7 +345,7 @@ connection.on('connect', function(err) {
 }); */
 
 ///////////////////////////////// SQL helper functions
-function SaveSecretFileProfilePic(imageStringAndSecretFileLabel){
+function SaveSecretFileProfilePic(imageStringAndSecretFileLabel){//call after user chooses profile pic
   var arr = imageStringAndSecretFileLabel.split(VALUESEPARATOR)
   var imageString = arr[0]
   var secretFileLabel = arr[1]
@@ -762,7 +762,7 @@ function IsImageProfilePic(imageString){
   return true
 }
 
-function ShowGroupProfilePics(secretfileString, reply){
+function ShowGroupProfilePics(secretfileString, reply){//call this to show profile pic options
   var elementList = new List()
   //loop through db stored images
   var imageStrings = []
