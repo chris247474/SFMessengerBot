@@ -363,7 +363,41 @@ connection.on('connect', function(err) {
 }); */
 
 ///////////////////////////////// SQL helper functions
+function BroadcastToAll(message){
+  
+}
 
+var GetSubscribedUsersForSecretFile = async (function(secretFileLabel){
+  pool.acquire(function(err, connection){
+    if (err) {
+        console.error(err);
+        return;
+    }
+    
+    try{
+      var Request = new Request(
+        'SELECT username FROM ACCOUNTITEM WHERE ', 
+      function(err) {  
+        if (err) {  
+          console.log(err);
+        }  
+
+
+
+        //release the connection back to the pool when finished
+        connection.release();
+      });  
+
+      //insert values into those marked w '@'
+      Request.addParameter('', TYPES.NVarChar, )
+
+      connection.execSql(Request);
+    } catch(err){
+      console.log("SaveSecretFileProfilePic error: "+err.message)
+    }
+
+  })
+})
 
 function SaveSecretFileProfilePic(imageStringAndSecretFileLabel){//call after user chooses profile pic
   var arr = imageStringAndSecretFileLabel.split(VALUESEPARATOR)
@@ -1316,7 +1350,9 @@ function ShowAllSubscribedPosts(payload, reply, userid){
                       secretFileRequest.on('row', function(cols){
                           elementsList.add(createElementForPayloadForAttachmentForMessage(
                             (cols[5]).value,
-                            (cols[6]).value, '', '',
+                            (cols[6]).value, 
+                            'https://www.google.com', 
+                            cols[7].value,
                             [
                               createButton("postback", postbackReadFromThisSecretFileString, 
                                 postbackReadFromThisSecretFileString+VALUESEPARATOR+cols[5].value)
