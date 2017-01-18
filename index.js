@@ -319,7 +319,7 @@ var staticFileURL = ''
 
 if(localTestMode == true){
   serverString = 'chrisdavetv.database.windows.net'
-  staticFileURL = "https://49829a92.ngrok.io"
+  staticFileURL = "https://ef8cc758.ngrok.io"
 }else{
   serverString = '127.0.0.1'
   staticFileURL = "https://murmuring-depths-99314.herokuapp.com/"
@@ -808,11 +808,14 @@ bot.on('postback', (postbackContainer, reply, actions) => {
 /////////////////////////////// Helper functions
 
 function IsImageProfilePic(imageString){
+  console.log('checking if profile pic')
   for(var c = 0;c < imageStrings.length;c++){
     if(imageStrings[c] === imageString){
+      console.log('found profile pic')
       return true
     }
   }
+  console.log('no profile pic found')
   return false
 }
 
@@ -824,9 +827,9 @@ function ShowGroupProfilePics(secretfileString, reply){//call this to show profi
     elementList.add(
       createElementForPayloadForAttachmentForMessage(
         imageStrings[c],
-        staticFileURL,//"https://4.bp.blogspot.com", 
+        '',
+        staticFileURL,
         staticFileURL + '/' + 'images/' + imageStrings[c],
-        '',  
         [
           createButton("postback", postbackGroupProfilePicString, 
                                     imageStrings[c]+VALUESEPARATOR+secretfileString)
@@ -834,7 +837,7 @@ function ShowGroupProfilePics(secretfileString, reply){//call this to show profi
       )
     )
   }
-  ShowAttachmentToUser("Choose an image for your Secret File", elementList.toArray(), reply)
+  ShowAttachmentToUser("Choose a profile pic for your Secret File", elementList.toArray(), reply)
 }
 
 function CreatePostHTML(filename, postTitle, bodytitle, bodytext, alias, date){
@@ -1583,11 +1586,11 @@ function ShowSecretFilesSubscriptions(senderid, reply, postbackPayloadTypeString
         });  
 
         queryRequest.on('requestCompleted', function() { 
-          var stringsplit = 
-          ("https://4.bp.blogspot.com/-BB8-tshB9fk/WA9IvvztmfI/AAAAAAAAcHU/hwMnPbAM4lUx8FtCTiSp7IpIes-S0RkLgCLcB/s640/dlsu-campus.jpg".split('.com'))[0] +'.com'
+          //"https://4.bp.blogspot.com/-BB8-tshB9fk/WA9IvvztmfI/AAAAAAAAcHU/hwMnPbAM4lUx8FtCTiSp7IpIes-S0RkLgCLcB/s640/dlsu-campus.jpg".split('.com'))[0] +'.com'
           
           console.log(rowList.toArray().length + ' rows returned');  
           rowList.forEach(function(columns){
+            console.log('url to be saved: '+columns[7].value)
             elementsList.add(createElementForPayloadForAttachmentForMessage(
               columns[5].value,
               columns[6].value,
@@ -1616,7 +1619,8 @@ function ShowSecretFilesSubscriptions(senderid, reply, postbackPayloadTypeString
               console.log(`Showing empty Secret Files subscription list to user `+ senderid)
             })
           }else {
-            reply({ 
+            ShowAttachmentToUser(null, elements, reply)
+            /*reply({ 
                 attachment:createTemplateAttachmentForMessage(elements)
             }, (err) => {
               if (err) {
@@ -1625,7 +1629,7 @@ function ShowSecretFilesSubscriptions(senderid, reply, postbackPayloadTypeString
               }
 
               console.log(`Showing Secret Files subscription list to user `+ senderid)
-            })
+            })*/
           }
 
           //release the connection back to the pool when finished
