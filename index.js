@@ -368,7 +368,7 @@ function BroadcastToAll(message){
 }
 
 var GetSubscribedUsersForSecretFile = async (function(secretFileLabel){
-  pool.acquire(function(err, connection){
+  /*pool.acquire(function(err, connection){
     if (err) {
         console.error(err);
         return;
@@ -396,7 +396,7 @@ var GetSubscribedUsersForSecretFile = async (function(secretFileLabel){
       console.log("SaveSecretFileProfilePic error: "+err.message)
     }
 
-  })
+  })*/
 })
 
 function SaveSecretFileProfilePic(imageStringAndSecretFileLabel){//call after user chooses profile pic
