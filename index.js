@@ -826,9 +826,9 @@ function ShowGroupProfilePics(secretfileString, reply){//call this to show profi
   for(var c = 0;c < imageStrings.length;c++){
     elementList.add(
       createElementForPayloadForAttachmentForMessage(
-        imageStrings[c],
+        imageStrings[c],//generate labels for imageStrings array
         '',
-        staticFileURL,
+        'https://www.google.com',//staticFileURL,
         staticFileURL + '/' + 'images/' + imageStrings[c],
         [
           createButton("postback", postbackGroupProfilePicString, 
