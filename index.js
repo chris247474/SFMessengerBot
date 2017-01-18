@@ -7,6 +7,10 @@ var path = require('path');
 //lightweight wrapper for common fb messenger GET POST
 const Bot = require('messenger-bot')
 
+//C# - like await/async functions
+var async = require('asyncawait/async');
+var await = require('asyncawait/await');
+
 const request = require('request')
 const express = require('express')
 const bodyParser = require('body-parser')
@@ -359,6 +363,8 @@ connection.on('connect', function(err) {
 }); */
 
 ///////////////////////////////// SQL helper functions
+
+
 function SaveSecretFileProfilePic(imageStringAndSecretFileLabel){//call after user chooses profile pic
   var arr = imageStringAndSecretFileLabel.split(VALUESEPARATOR)
   var imageString = staticFileURL + '/' + 'images/' + arr[0]
