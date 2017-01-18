@@ -35,6 +35,9 @@ var WitAiHasControl = false
 //use this flag to mark when an action is done so wit.ai can reset the session to prevent context confusion
 var contextDone = false
 
+//object for replying to user
+var globalReplyObj = null
+
 //just some flags for keeping track of posts read by user in secret files
 var postCounter = 0
 var allPostsRead = false
@@ -96,6 +99,13 @@ const findOrCreateSession = (fbid) => {
   }
   return sessionId;
 };
+
+//list of profile pics
+var imageStrings = [
+    'chicago.jpg',
+    'monsters.jpg',
+    'stanford.jpg'
+  ]
 
 const addSecretFilesStringToTitleIfNone = (title) => {
   const SECRETFILESSTRING = 'Secret Files'
@@ -237,6 +247,10 @@ const actions = {
       
       console.log('done with wit.ai call, returning text recognition to local functions')
       endWitAISession_HandleAllMessagesLocally()
+
+      
+
+      //wrap up wit.ai session
       context.createSecretFileDone = true
       return resolve(context);
     });
@@ -305,7 +319,7 @@ var staticFileURL = ''
 
 if(localTestMode == true){
   serverString = 'chrisdavetv.database.windows.net'
-  staticFileURL = "https://e1572428.ngrok.io"
+  staticFileURL = "https://49829a92.ngrok.io"
 }else{
   serverString = '127.0.0.1'
   staticFileURL = "https://murmuring-depths-99314.herokuapp.com/"
@@ -347,11 +361,39 @@ connection.on('connect', function(err) {
 ///////////////////////////////// SQL helper functions
 function SaveSecretFileProfilePic(imageStringAndSecretFileLabel){//call after user chooses profile pic
   var arr = imageStringAndSecretFileLabel.split(VALUESEPARATOR)
-  var imageString = arr[0]
+  var imageString = staticFileURL + '/' + 'images/' + arr[0]
   var secretFileLabel = arr[1]
 
   console.log('saving '+imageString+' image to secretfile '+secretFileLabel)
-  //save to db
+  //save profile pic to secret file record
+  pool.acquire(function(err, connection){
+    if (err) {
+        console.error(err);
+        return;
+    }
+    
+    try{
+      var saveRequest = new Request(
+        'UPDATE GROUPITEM SET groupImage=@image WHERE groupName=@secretfiletitle', 
+      function(err) {  
+        if (err) {  
+          console.log(err);
+        }  
+
+        //release the connection back to the pool when finished
+        connection.release();
+      });  
+
+      //insert values into those marked w '@'
+      saveRequest.addParameter('image', TYPES.NVarChar, imageString)
+      saveRequest.addParameter('secretfiletitle', TYPES.NVarChar, secretFileLabel)
+
+      connection.execSql(saveRequest);
+    } catch(err){
+      console.log("SaveSecretFileProfilePic error: "+err.message)
+    }
+
+  })
 }
 
 function Login(userid){
@@ -650,6 +692,10 @@ function CreateNewSecretFileRecord(title, desc, imageurl) {
             console.log(err);
           }  
 
+          //choose profile pic here
+          console.log('CreateNewSecretFileRecord: globalReplyObj is null? '+ globalReplyObj == null)
+          ShowGroupProfilePics(title, globalReplyObj)
+
           //release the connection back to the pool when finished
           connection.release();
         });  
@@ -661,7 +707,6 @@ function CreateNewSecretFileRecord(title, desc, imageurl) {
         queryRequest.addParameter('adminuserId', TYPES.NVarChar, '');
 
         connection.execSql(queryRequest); 
-        
       }) 
 
       console.log('CreateNewSecretFileRecord executed')
@@ -691,6 +736,8 @@ bot.on('message', (callbackObject, reply) => {//fb servers are being screwy i th
   console.log('message received')
   console.log('received message '+callbackObject.message.text+ ' from user '+callbackObject.sender.id)
 
+  globalReplyObj = reply
+
   if(WitAiHasControl == false){
     if(callbackObject.message.quick_reply){
       //handles quick_replies
@@ -718,6 +765,8 @@ bot.on('message', (callbackObject, reply) => {//fb servers are being screwy i th
 })
 
 bot.on('postback', (postbackContainer, reply, actions) => {
+  globalReplyObj = reply
+
   var _payload = postbackContainer.postback.payload
   console.log('postback event received from user '+ postbackContainer.sender.id)
   console.log('payload: '+ _payload)
@@ -759,20 +808,25 @@ bot.on('postback', (postbackContainer, reply, actions) => {
 /////////////////////////////// Helper functions
 
 function IsImageProfilePic(imageString){
-  return true
+  for(var c = 0;c < imageStrings.length;c++){
+    if(imageStrings[c] === imageString){
+      return true
+    }
+  }
+  return false
 }
 
 function ShowGroupProfilePics(secretfileString, reply){//call this to show profile pic options
   var elementList = new List()
   //loop through db stored images
-  var imageStrings = []
+  
   for(var c = 0;c < imageStrings.length;c++){
     elementList.add(
       createElementForPayloadForAttachmentForMessage(
-        '',
-        '',//"https://4.bp.blogspot.com", 
         imageStrings[c],
-        , '' 
+        staticFileURL,//"https://4.bp.blogspot.com", 
+        staticFileURL + '/' + 'images/' + imageStrings[c],
+        '',  
         [
           createButton("postback", postbackGroupProfilePicString, 
                                     imageStrings[c]+VALUESEPARATOR+secretfileString)
@@ -1388,7 +1442,7 @@ function GetNewPostBodyText(payload, reply){
   
 }
 
-function CreateNewSecretFile(payload, reply){
+/*function CreateNewSecretFile(payload, reply){
   //show camera, audio or text upload options
   console.log('CreateNewSecretFile function called')
   reply({
@@ -1401,7 +1455,7 @@ function CreateNewSecretFile(payload, reply){
   })
 
   CreateNewSecretFileRecord('Ateneo Secret Files', 'Description here', '')
-}
+}*/
 
 function createQuickTextReply(_title, _payload){
   return {
@@ -1529,13 +1583,16 @@ function ShowSecretFilesSubscriptions(senderid, reply, postbackPayloadTypeString
         });  
 
         queryRequest.on('requestCompleted', function() { 
+          var stringsplit = 
+          ("https://4.bp.blogspot.com/-BB8-tshB9fk/WA9IvvztmfI/AAAAAAAAcHU/hwMnPbAM4lUx8FtCTiSp7IpIes-S0RkLgCLcB/s640/dlsu-campus.jpg".split('.com'))[0] +'.com'
+          
           console.log(rowList.toArray().length + ' rows returned');  
           rowList.forEach(function(columns){
             elementsList.add(createElementForPayloadForAttachmentForMessage(
               columns[5].value,
               columns[6].value,
-              "https://4.bp.blogspot.com", 
-              "https://4.bp.blogspot.com/-BB8-tshB9fk/WA9IvvztmfI/AAAAAAAAcHU/hwMnPbAM4lUx8FtCTiSp7IpIes-S0RkLgCLcB/s640/dlsu-campus.jpg", 
+              'https://www.google.com',//(columns[7].value.split('.com'))[0] + '.com', 
+              columns[7].value,
               [
                 createButton("postback", buttonText, postbackPayloadTypeString+VALUESEPARATOR+columns[5].value)
               ]
