@@ -317,7 +317,7 @@ function SendMessageToWitAI(senderid, messageToProcess){
 var VALUESEPARATOR = ';'
 
 var pendingPostText = ''
-var localTestMode = true
+var localTestMode = false
 var serverString = ''
 var staticFileURL = ''
 
@@ -786,7 +786,7 @@ function CreateNewPostRecord(postText, reply, secretfileid){
                   //pendingPostText = ''
 
                   //broadcast post to all subcribers of this secret file
-                  broadcastToSecretFilesSubscriptions(postText)
+                  //broadcastToSecretFilesSubscriptions(postText)
                 }
 
                 //release the connection back to the pool when finished
