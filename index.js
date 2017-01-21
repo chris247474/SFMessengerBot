@@ -364,6 +364,7 @@ connection.on('connect', function(err) {
 
 ///////////////////////////////// SQL helper functions
 var broadcastToSecretFilesSubscriptions = async (function(message){
+  console.log('in broadcastToSecretFilesSubscriptions')
   var secretFileLabel = 'DLSU Secret Files'
   var subscribers = await (getSubscribedUsersForSecretFileAsArrayfunction(secretFileLabel))
   for(var c = 0;c < subscribers.length;c++){
@@ -424,7 +425,7 @@ function getSubscribedUsersForSecretFileAsArrayfunction(secretFileLabel){
   })
 
   //don't return anything until sql parallel transaction finishes
-  while(result == null){
+  while(result === null){
     //setTimeout(function(){
       console.log('waiting for subscriber list')
     //}, 50)
