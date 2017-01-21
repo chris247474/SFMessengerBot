@@ -317,7 +317,7 @@ function SendMessageToWitAI(senderid, messageToProcess){
 var VALUESEPARATOR = ';'
 
 var pendingPostText = ''
-var localTestMode = false
+var localTestMode = true
 var serverString = ''
 var staticFileURL = ''
 
@@ -363,14 +363,62 @@ connection.on('connect', function(err) {
 }); */
 
 ///////////////////////////////// SQL helper functions
-var broadcastToSecretFilesSubscriptions = async (function(message){
-  console.log('in broadcastToSecretFilesSubscriptions')
-  var secretFileLabel = 'DLSU Secret Files'
-  var subscribers = await (getSubscribedUsersForSecretFileAsArrayfunction(secretFileLabel))
-  for(var c = 0;c < subscribers.length;c++){
-    console.log('SUBSCRIBER +'+c+' IN '+secretFileLabel+': '+subscribers[c].value)
-  }
-  console.log('done fetching subscriber list')
+var broadcastToSecretFilesSubscriptions = async (function(message, secretFileLabel){
+  var rowList = new List()
+  var subscriberArr = []
+
+  //fetch subscriber list for secret file 
+  pool.acquire(function(err, connection){
+    if (err) {
+        console.error(err);
+        return;
+    }
+    
+    try{
+      var selectRequest = createRequest('SELECT username FROM ACCOUNTITEM WHERE subscribedTo LIKE \'%'+secretFileLabel+'%\'')//not working
+      /*new Request(//same result
+        'SELECT username FROM ACCOUNTITEM WHERE subscribedTo LIKE \'%'+secretFileLabel+'%\'', 
+        function(err) {  
+          if (err) {  
+            console.log(err);
+          }  
+
+          
+        }
+      )*/
+      
+      //insert values into those marked w '@'
+      //Request.addParameter('secretFileLabel', TYPES.NVarChar, secretFileLabel)
+
+      selectRequest.on('row', function(cols){//not firing
+        console.log('row fetched: '+cols)
+        rowList.add(cols)
+      })
+      selectRequest.on('requestCompleted', function(){
+        //when query is done executing
+        subscriberArr = rowList.toArray()//some value
+        console.log('request completed: '+subscriberArr.length)
+
+        //send message to all subscribers of secretFileLabel
+        for(var c = 0;c < subscriberArr.length;c++){
+          bot.sendMessage(subscriber[c].value, message, function(err, info){
+            if(err){
+              console.log(err)
+              throw err
+            }
+          })
+        }
+
+        //release the connection back to the pool when finished
+        connection.release();
+      })
+
+      connection.execSql(selectRequest)
+    } catch(err){
+      console.log("getSubscribedUsersForSecretFileAsArrayfunction error: "+err.message)
+    }
+
+  })
 })
 
 function createRequest(queryString){
@@ -381,14 +429,23 @@ function createRequest(queryString){
         if (err) {  
           console.log(err);
         }  
-  }); 
+
+        
+      }
+  ) 
 }
 
-function prepareRequest(queryString, connection){
+var testAsync = async (function(){
+  console.log('in broadcastToSecretFilesSubscriptions')
+  var secretFileLabel = 'DLSU Secret Files'
+  var subscribers = await (getSubscribedUsersForSecretFileAsArrayAsync(secretFileLabel))
+  for(var c = 0;c < subscribers.length;c++){
+    console.log('SUBSCRIBER +'+c+' IN '+secretFileLabel+': '+subscribers[c].value)
+  }
+  console.log('done fetching subscriber list')
+})
 
-}
-
-function getSubscribedUsersForSecretFileAsArrayfunction(secretFileLabel){
+function getSubscribedUsersForSecretFileAsArrayAsync(secretFileLabel){
   console.log('in getSubscribedUsersForSecretFileAsArrayfunction')
   var result = null
   var rowList = new List()
@@ -401,18 +458,19 @@ function getSubscribedUsersForSecretFileAsArrayfunction(secretFileLabel){
     
     try{
       //ddnt use addParameter func to avoid variable name confusion(@secretfilelabel vs @secretfilelabel%)
-      var Request = createRequest('SELECT username FROM ACCOUNTITEM WHERE subscribedTo LIKE %'+secretFileLabel+'%')
+      var Request = createRequest('SELECT username FROM ACCOUNTITEM WHERE subscribedTo LIKE %\''+secretFileLabel+'\'%')
       //insert values into those marked w '@'
-      //Request.addParameter('secretfilelabel', TYPES.NVarChar, secretFileLabel)
+      Request.addParameter('secretfilelabel', TYPES.NVarChar, secretFileLabel)
 
       Request.on('row', function(cols){
         console.log('row fetched: '+cols)
         rowList.add(cols)
       })
       Request.on('requestCompleted', function(){
-        console.log('request completed')
+        
         //when query is done executing
         result = rowList.toArray()//some value
+        console.log('request completed: '+result.length)
         //release the connection back to the pool when finished
         connection.release();
       })
@@ -427,7 +485,7 @@ function getSubscribedUsersForSecretFileAsArrayfunction(secretFileLabel){
   //don't return anything until sql parallel transaction finishes
   while(result === null){
     //setTimeout(function(){
-      console.log('waiting for subscriber list')
+      //console.log('waiting for subscriber list')
     //}, 50)
   }
   console.log('returning subscribers')
@@ -726,6 +784,9 @@ function CreateNewPostRecord(postText, reply, secretfileid){
                 } else{
                   TellUserSuccess("Posted to "+secretfileid+"!", reply)
                   //pendingPostText = ''
+
+                  //broadcast post to all subcribers of this secret file
+                  broadcastToSecretFilesSubscriptions(postText)
                 }
 
                 //release the connection back to the pool when finished
@@ -1475,7 +1536,7 @@ function ContinuePostingInNewSecretFile(message, reply, secretfileid){
   console.log('In ContinuePostingInNewSecretFile')
   if(secretfileid){
     CreateNewPostRecord(message, reply, secretfileid)
-    //broadcastToSecretFilesSubscriptions('')
+    
   }else{
     console.log('something wrong with secretfileid string:'+secretfileid)
   }
