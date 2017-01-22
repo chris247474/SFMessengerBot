@@ -7,6 +7,9 @@ var path = require('path');
 //lightweight wrapper for common fb messenger GET POST
 const Bot = require('messenger-bot')
 
+//for sql string escape characters in prepared statements
+var SqlString = require('sqlstring');
+
 //C# - like await/async functions
 var async = require('asyncawait/async');
 var await = require('asyncawait/await');
@@ -323,7 +326,7 @@ var staticFileURL = ''
 
 if(localTestMode == true){
   serverString = 'chrisdavetv.database.windows.net'
-  staticFileURL = "https://73c09d8d.ngrok.io"
+  staticFileURL = "https://912411e0.ngrok.io"
 }else{
   serverString = '127.0.0.1'
   staticFileURL = "https://murmuring-depths-99314.herokuapp.com/"
@@ -375,20 +378,13 @@ var broadcastToSecretFilesSubscriptions = async (function(message, secretFileLab
     }
     
     try{
-      var selectRequest = createRequest('SELECT username FROM ACCOUNTITEM WHERE subscribedTo LIKE \'%'+secretFileLabel+'%\'')//not working
-      /*new Request(//same result
-        'SELECT username FROM ACCOUNTITEM WHERE subscribedTo LIKE \'%'+secretFileLabel+'%\'', 
-        function(err) {  
-          if (err) {  
-            console.log(err);
-          }  
-
-          
-        }
-      )*/
+      var sqlQuery = //'SELECT * FROM ACCOUNTITEM WHERE subscribedTo LIKE ' + 
+        SqlString.escape("%"+secretFileLabel+"%")
+      var selectRequest = createRequest('SELECT * FROM ACCOUNTITEM WHERE subscribedTo LIKE @secretfilelabel')//not working
       
       //insert values into those marked w '@'
-      //Request.addParameter('secretFileLabel', TYPES.NVarChar, secretFileLabel)
+      selectRequest.addParameter('secretfilelabel', TYPES.NVarChar, sqlQuery)
+      console.log('query is '+sqlQuery)
 
       selectRequest.on('row', function(cols){//not firing
         console.log('row fetched: '+cols)
@@ -401,7 +397,8 @@ var broadcastToSecretFilesSubscriptions = async (function(message, secretFileLab
 
         //send message to all subscribers of secretFileLabel
         for(var c = 0;c < subscriberArr.length;c++){
-          bot.sendMessage(subscriber[c].value, message, function(err, info){
+          console.log('sending message to '+ (subscriber[c])[5].value)
+          bot.sendMessage((subscriber[c])[5].value, message, function(err, info){
             if(err){
               console.log(err)
               throw err
@@ -460,7 +457,7 @@ function getSubscribedUsersForSecretFileAsArrayAsync(secretFileLabel){
       //ddnt use addParameter func to avoid variable name confusion(@secretfilelabel vs @secretfilelabel%)
       var Request = createRequest('SELECT username FROM ACCOUNTITEM WHERE subscribedTo LIKE %\''+secretFileLabel+'\'%')
       //insert values into those marked w '@'
-      Request.addParameter('secretfilelabel', TYPES.NVarChar, secretFileLabel)
+      //Request.addParameter('secretfilelabel', TYPES.NVarChar, secretFileLabel)
 
       Request.on('row', function(cols){
         console.log('row fetched: '+cols)
@@ -786,7 +783,7 @@ function CreateNewPostRecord(postText, reply, secretfileid){
                   //pendingPostText = ''
 
                   //broadcast post to all subcribers of this secret file
-                  //broadcastToSecretFilesSubscriptions(postText)
+                  //broadcastToSecretFilesSubscriptions(postText, secretfileid)
                 }
 
                 //release the connection back to the pool when finished
@@ -1706,11 +1703,7 @@ function ShowSecretFilesSubscriptions(senderid, reply, postbackPayloadTypeString
         var GETALLSECRETFILESQUERY = "SELECT * FROM GROUPITEM"
         var rowList = new List()
         var elementsList = new List()
-        var queryRequest = new Request(GETALLSECRETFILESQUERY, function(err) {  
-          if (err) {  
-              console.log(err);}  
-          }
-        );  
+        var queryRequest = createRequest(GETALLSECRETFILESQUERY)
 
         queryRequest.on('row', function(columns) {
             var skip = false;
