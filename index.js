@@ -70,6 +70,7 @@ var postbackReadMorePostsString = 'Read More'
 var postbackReadFromThisSecretFileString = 'Read From Here'
 var payloadGroupProfilePicString = 'payloadGroupProfilePicString'
 var postbackGroupProfilePicString = 'Use This'
+var payloadReplyToPost = 'Reply to Secret'
 
 const FB_PAGE_TOKEN = 'EAAX2onbWfdMBAEfamUMkl6uACF8tvWOtFMSFwzjcZBl2ovDPMUbV7BcsOMzj0OUzeoSPckZAHakSwCoxOjMFUcJpWdFYyFdviUmd0nNWhjwqdpYgQrNItKwZBACRldnUvUHMnwm20cBjypOPX18jn0S1MsajtZB59x1k2ikZAEQZDZD'
 
@@ -326,7 +327,7 @@ var staticFileURL = ''
 
 if(localTestMode == true){
   serverString = 'chrisdavetv.database.windows.net'
-  staticFileURL = "https://912411e0.ngrok.io"
+  staticFileURL = "https://5b611899.ngrok.io"
 }else{
   serverString = '127.0.0.1'
   staticFileURL = "https://murmuring-depths-99314.herokuapp.com/"
@@ -366,7 +367,7 @@ connection.on('connect', function(err) {
 }); */
 
 ///////////////////////////////// SQL helper functions
-var broadcastToSecretFilesSubscriptions = async (function(message, secretFileLabel){
+var broadcastToSecretFilesSubscriptions = async (function(message, secretFileLabel, title){
   var rowList = new List()
   var subscriberArr = []
 
@@ -380,15 +381,15 @@ var broadcastToSecretFilesSubscriptions = async (function(message, secretFileLab
     try{
       var sqlQuery = //'SELECT * FROM ACCOUNTITEM WHERE subscribedTo LIKE ' + 
         SqlString.escape("%"+secretFileLabel+"%")
-      var selectRequest = createRequest('SELECT * FROM ACCOUNTITEM WHERE subscribedTo LIKE @secretfilelabel')//not working
+      var selectRequest = createRequest('SELECT username FROM ACCOUNTITEM WHERE subscribedTo=@secretfilelabel')//not working
       
       //insert values into those marked w '@'
-      selectRequest.addParameter('secretfilelabel', TYPES.NVarChar, sqlQuery)
+      selectRequest.addParameter('secretfilelabel', TYPES.NVarChar, 'DLSU Secret Files;Zobel Secret Files;')
       console.log('query is '+sqlQuery)
 
       selectRequest.on('row', function(cols){//not firing
-        console.log('row fetched: '+cols)
-        rowList.add(cols)
+        console.log('row fetched: '+cols[0].value)
+        rowList.add(cols[0].value)
       })
       selectRequest.on('requestCompleted', function(){
         //when query is done executing
@@ -397,13 +398,9 @@ var broadcastToSecretFilesSubscriptions = async (function(message, secretFileLab
 
         //send message to all subscribers of secretFileLabel
         for(var c = 0;c < subscriberArr.length;c++){
-          console.log('sending message to '+ (subscriber[c])[5].value)
-          bot.sendMessage((subscriber[c])[5].value, message, function(err, info){
-            if(err){
-              console.log(err)
-              throw err
-            }
-          })
+          console.log('sending message to '+ subscriberArr[c])
+          sendMessageQuickReplyToUser(subscriberArr[c], 
+            formatMessageForBroadcast(message, title))
         }
 
         //release the connection back to the pool when finished
@@ -771,6 +768,7 @@ function CreateNewPostRecord(postText, reply, secretfileid){
           }  
 
           totalSecretFileCount = (rowList.toArray()).length//used for number in #DLSU Secret Files <number here>
+          var title = removeSpaces(secretfileid)+totalSecretFileCount
           pool.acquire(function(err, connection){
               var queryRequest = new Request(
                 'INSERT INTO POSTITEM (postImage, userId, groupID, reactionCount, body, title) VALUES (@image, @userid, @groupid, @reactionCount, @bodyText, @titleText)', 
@@ -783,7 +781,7 @@ function CreateNewPostRecord(postText, reply, secretfileid){
                   //pendingPostText = ''
 
                   //broadcast post to all subcribers of this secret file
-                  //broadcastToSecretFilesSubscriptions(postText, secretfileid)
+                  broadcastToSecretFilesSubscriptions(postText, secretfileid, title)
                 }
 
                 //release the connection back to the pool when finished
@@ -794,7 +792,7 @@ function CreateNewPostRecord(postText, reply, secretfileid){
               queryRequest.addParameter('groupid', TYPES.NVarChar, secretfileid);
               queryRequest.addParameter('reactionCount', TYPES.NVarChar, '');
               queryRequest.addParameter('bodyText', TYPES.NVarChar, postText);
-              queryRequest.addParameter('titleText', TYPES.NVarChar, /*'#'+*/ removeSpaces(secretfileid)+totalSecretFileCount);
+              queryRequest.addParameter('titleText', TYPES.NVarChar, /*'#'+*/ title);
               connection.execSql(queryRequest); 
           })
 
@@ -939,6 +937,49 @@ bot.on('postback', (postbackContainer, reply, actions) => {
 ///////////////////////////////
 
 /////////////////////////////// Helper functions
+function formatMessageForBroadcast(message, secretfilehashtag){
+  return '#' + secretfilehashtag + '\n\n' + message
+}
+
+function sendMessageToUser(recipientID, message){
+  try{
+    bot.sendMessage(recipientID, {
+      "text":message
+      }, function(err, info){
+        if(err){
+          console.log(err)
+          throw err
+        }
+    })
+  }catch(err){
+    if(err){
+      console.log(err)
+      throw err
+    }
+  }
+}
+
+function sendMessageQuickReplyToUser(recipientID, message){
+  try{
+    bot.sendMessage(recipientID, {
+      "text":message,
+      "quick_replies": [
+          createQuickTextReply('Reply', payloadReplyToPost)
+          //like, dislike, react, etc?
+        ]
+      }, function(err, info){
+        if(err){
+          console.log(err)
+          throw err
+        }
+    })
+  }catch(err){
+    if(err){
+      console.log(err)
+      throw err
+    }
+  }
+}
 
 function IsImageProfilePic(imageString){
   console.log('checking if profile pic')
@@ -1180,6 +1221,9 @@ function handleMessages(message, callbackObject, reply){
         var postText = postMessage.replace('post', '')
         pendingPostText = postText
         PostNewinSecretFile(reply, callbackObject.sender.id)
+        return true
+      }else if(message == payloadReplyToPost){
+        ReplyUnderConstruction(globalReplyObj)
         return true
       }/*else if(imageMessage){//move to WitAiHasControl true block
         console.log('received an image attachment with url '+imageMessage)
