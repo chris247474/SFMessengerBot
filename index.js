@@ -653,14 +653,10 @@ function SubscribeToSecretFile(reply, secretfile, userid){
       var arr = accountRowList.toArray()
       if(arr.length > 0){
         pool.acquire(function(err, connection){
-            /*userSubscriptionList = (arr[0])[7].value
-            userSubscriptionList += secretfile+VALUESEPARATOR
-            userSubscriptionList = userSubscriptionList.replace('null', '')*/
-
             //go ahead and update value
             var rowList = new List()
             var updateRequest = new Request(
-                "INSERT INTO SUBSCRIPTIONS (username, subscription) VALUES (@userid, @subscriptions)"
+                "INSERT INTO SUBSCRIPTIONS (username, subscription) VALUES (@userid, @subscriptions)"//WHERE @subscriptions NOT IN ()
                 , function(err) {  
               if (err) {  
                 console.log(err);
@@ -673,21 +669,6 @@ function SubscribeToSecretFile(reply, secretfile, userid){
                     createQuickTextReply(PostNew, PostNew),
                     createQuickTextReply(ShowPostsString, ShowPostsString)
                   ], reply)
-              /*reply(
-                {
-                  text: responseMessage, 
-                  quick_replies: [
-                    createQuickTextReply(PostNew, PostNew),
-                    createQuickTextReply(ShowPostsString, ShowPostsString)
-                  ]
-                }, (err, info) => {
-                    if(err) {
-                      console.log(err.message)
-                      throw err
-                    }
-              })*/
-
-              //update GroupItem table too //consider executing on one statement
 
               //release the connection back to the pool when finished
               connection.release();
