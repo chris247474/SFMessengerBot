@@ -327,7 +327,7 @@ var staticFileURL = ''
 
 if(localTestMode == true){
   serverString = 'chrisdavetv.database.windows.net'
-  staticFileURL = "https://5b611899.ngrok.io"
+  staticFileURL = "https://1b509bb4.ngrok.io"
 }else{
   serverString = '127.0.0.1'
   staticFileURL = "https://murmuring-depths-99314.herokuapp.com/"
@@ -347,8 +347,8 @@ var connectionConfig = {
 }; 
 var poolConfig = {
   min: 1,
-  max: 4,
-  log: false
+  max: 2,
+  log: true
 };
 //create the pool
 var pool = new ConnectionPool(poolConfig, connectionConfig);
@@ -419,9 +419,8 @@ function createRequest(queryString){
       function(err) {  
         if (err) {  
           console.log(err);
-        }  
-
-        
+          throw err
+        } 
       }
   ) 
 }
@@ -1185,6 +1184,7 @@ function handleMessages(message, callbackObject, reply){
       else if(message == ShowPostsString){
         //show all posts from currently subscribed Secret Files
         ShowAllSubscribedPosts(callbackObject, reply, callbackObject.sender.id)
+        //ShowSubscribedPosts(callbackObject, reply, callbackObject.sender.id)
         return true
       }
       else if(message == HowDoesItWorkString){
@@ -1314,6 +1314,7 @@ function handlePersistentMenuActions(_payload, senderid, reply){
   }
   else if(_payload == ShowPostsString){
     ShowAllSubscribedPosts(_payload, reply, senderid)
+    //ShowSubscribedPosts(_payload, reply, senderid)
   }
   else if(_payload == ShowSecretFilesString){
    ShowSecretFilesSubscriptions(senderid, reply, SubscribeStringPostback)
@@ -1415,6 +1416,53 @@ function addPersistentMenu(){
 
 }
 
+function ShowSubscribedPosts(payload, reply, userid){
+  console.log('ShowSubscribedPosts started')
+  var elementsList = new List()
+
+  //ask user which subscribed secret file to read from
+  var subList = new List()
+  pool.acquire(function(err, connection){
+    if (err) {
+        console.error(err);
+        return;
+    }
+
+    var selectRequest = 
+      createRequest('SELECT GroupItem.groupName, GroupItem.groupDesc, GroupItem.groupImage FROM GroupItem INNER JOIN SUBSCRIPTIONS ON GROUPITEM.groupName=SUBSCRIPTIONS.subscription')// WHERE Subscriptions.username=@userid')
+    //selectRequest.addParameter('userid', TYPES.NVarChar, userid)
+
+    selectRequest.on('row', function(columns){
+      console.log('subscription fetched: '+ columns[0].value + ', ' + columns[1].value + ', ' + columns[2].value)
+
+      elementsList.add(createElementForPayloadForAttachmentForMessage(
+        columns[0].value,
+        columns[1].value, 
+        'https://www.google.com', 
+        columns[2].value,
+        [
+          createButton("postback", postbackReadFromThisSecretFileString, 
+            postbackReadFromThisSecretFileString + VALUESEPARATOR + columns[0].value)
+        ]
+      ))
+    })
+
+    selectRequest.on('requestCompleted', function(){
+      console.log('done fetching subscriptions')
+
+      /*var elements = elementsList.toArray()
+      if(elements.length > 0) {
+        ShowAttachmentToUser('Which Secret File do you want to read?', elements, reply)
+      }else{
+        ReplyWithText('You\'re not subscribed to any Secret Files yet', reply)
+        ShowSecretFilesSubscriptions(userid, reply, SubscribeStringPostback)
+      }*/
+      
+    })
+
+  })
+}
+
 function ShowAllSubscribedPosts(payload, reply, userid){
   console.log('In ShowAllSubscribedPosts, userid: '+userid)
   var secretfilename = ''
@@ -1449,7 +1497,7 @@ function ShowAllSubscribedPosts(payload, reply, userid){
         try{
           pool.acquire(function(err, connection){
             if (err) {
-                console.error(err);
+                console.error(err)
                 return;
             }
 
@@ -1751,16 +1799,6 @@ function ShowSecretFilesSubscriptions(senderid, reply, postbackPayloadTypeString
             })
           }else {
             ShowAttachmentToUser(null, elements, reply)
-            /*reply({ 
-                attachment:createTemplateAttachmentForMessage(elements)
-            }, (err) => {
-              if (err) {
-                console.log(err.message)
-                throw err
-              }
-
-              console.log(`Showing Secret Files subscription list to user `+ senderid)
-            })*/
           }
 
           //release the connection back to the pool when finished
